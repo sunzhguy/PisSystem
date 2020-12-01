@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-11-30 14:31:00
+ * @LastEditTime: 2020-12-01 16:20:41
  */ 
 
 
@@ -26,12 +26,12 @@
 
 
 
-void timer_out_ctrl(void *_self, ev_timer_t *ev_timer,  void *arg)
+void timer_out_ctrl(void *_self, T_EV_TIMER *ev_timer,  void *arg)
 {
-    ev_ctl_t * evctl = (ev_ctl_t * )_self;
-    printf("++++++++++++++++++++++++++++++++++++++++timout->index:%d tm:%d,%p\r\n",ev_timer->index,ev_timer->expire,evctl);
-	ev_init_timer(ev_timer,1000,timer_out_ctrl,NULL);
-    ev_start_timer(evctl,ev_timer);
+    T_EVENT_CTL * evctl = (T_EVENT_CTL * )_self;
+    printf("++++++++++++++++++++timout->index:%ld tm:%ld,%p\r\n",ev_timer->u64Index,ev_timer->u64Expire,evctl);
+	EVIO_EventTimer_Init(ev_timer,1000,timer_out_ctrl,NULL);
+    EVIO_EventTimer_Start(evctl,ev_timer);
 }
 
 #if 0
@@ -82,13 +82,13 @@ static void watcher_B2A_cb (ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t ty
 #endif
 
 
-void handle_udp_event(ev_ctl_t *ctl, struct servfds *sfd)
+void handle_udp_event(T_EVENT_CTL *ctl, struct servfds *sfd)
 {
 	struct server *s = sfd->arg;
 	printf("handle udp event....\r\n");
 }
 
-static void main_loop_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
+static void main_loop_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
 {
 	struct servfds *sfd = arg;
 	struct server *s = sfd->arg;
@@ -98,13 +98,13 @@ static void main_loop_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type,
 	        sfd->cb(evctl, sfd);
 	        break;
 		case EV_WRITE:
-			printf("Main loop write event, unexpected");
+			printf("Main loop write event, unexpected\n");
 			break;
 		case EV_ERROR:
-			printf("Main loop error event, unexpected");
+			printf("Main loop error event, unexpected\n");
 			break;
 	    default:
-			printf("Main loop unknow event, unexpected");
+			printf("Main loop unknow event, unexpected\n");
     }
 }
 
@@ -112,7 +112,7 @@ int32_t nn_socket_init(struct server *s)
 {
 	struct servloop *sl = &s->sloop;
 	size_t size = sizeof(size_t);
-	/*sl->sfds_udp.n = nn_socket(AF_SP, NN_PAIR);
+	sl->sfds_udp.n = nn_socket(AF_SP, NN_PAIR);
 	if (-1 == sl->sfds_udp.n)
 		goto err;
 	if (-1 == nn_bind(sl->sfds_udp.n, "inproc://udp2serv"))
@@ -120,18 +120,18 @@ int32_t nn_socket_init(struct server *s)
 	
 	if (-1 == nn_getsockopt(sl->sfds_udp.n, NN_SOL_SOCKET, NN_RCVFD, (char *)&sl->sfds_udp.s, &size))
 		goto err1;
-	*/
+	
 	return 0;
 err1:
-	//nn_close(sl->sfds_udp.n);
+	nn_close(sl->sfds_udp.n);
 err:
 	return -1;
 }
 void nn_socket_close(struct server *s)
 {
 	struct servloop *sl = &s->sloop;
-	//close(sl->sfds_udp.s);
-	//nn_close(sl->sfds_udp.n);
+	close(sl->sfds_udp.s);
+	nn_close(sl->sfds_udp.n);
 
 }
 int32_t  main_loop(struct server *s)
@@ -144,31 +144,30 @@ int32_t  main_loop(struct server *s)
 	sl->sfds_udp.cb = handle_udp_event;//UDP enventloop main server
     sl->sfds_udp.arg = s;
 
-	 s->sloop.evctl = evctl_create();  //创建一个事件控制器 creator event contoler
+	 s->sloop.evctl = EVIO_EventCtl_Create();  //创建一个事件控制器 creator event contoler
 	 if(NULL == s->sloop.evctl)
 	 goto err1;
 	 
-    sl->sfds_udp.evfd = ev_fd_add(sl->evctl, sl->sfds_udp.s, main_loop_cb, &sl->sfds_udp);//add the event fd 
+    sl->sfds_udp.evfd = EVIO_EventFd_Add(sl->evctl, sl->sfds_udp.s, main_loop_cb, &sl->sfds_udp);//add the event fd 
 	if (NULL == sl->sfds_udp.evfd)
 		goto err2;
-	 ev_watch_read(s->sloop.evctl, sl->sfds_udp.evfd);
-
-	 ev_init_timer(&s->ev_timer,1000,timer_out_ctrl,NULL);
-	 ev_start_timer(s->sloop.evctl,&s->ev_timer);
+	 EVIO_Event_Watch_Read(s->sloop.evctl, sl->sfds_udp.evfd);
+	 EVIO_EventTimer_Init(&s->ev_timer,1000,timer_out_ctrl,NULL);
+	 EVIO_EventTimer_Start(s->sloop.evctl,&s->ev_timer);
 
 	 return 0;
 err2:
-	evctl_free(sl->evctl);
+	EVIO_EventCtl_Free(sl->evctl);
 err1:
-	//nn_socket_close(s);
+	nn_socket_close(s);
 	return -1;
 }
 
 void main_loop_del(struct server *s)
 {
 	struct servloop *sl = &s->sloop;
-	ev_fd_del(sl->evctl, sl->sfds_udp.evfd);
-	evctl_free(sl->evctl);
+	EVIO_EventFd_Del(sl->evctl, sl->sfds_udp.evfd);
+	EVIO_EventCtl_Free(sl->evctl);
 	nn_socket_close(s);
 }
 int main( void )
@@ -197,7 +196,7 @@ int main( void )
   	}
      while(1)
      {
-        ev_loop_start(server.sloop.evctl);
+        EVIO_EventCtlLoop_Start(server.sloop.evctl);
      }
 err2:
 	printf("main err2...\r\n");

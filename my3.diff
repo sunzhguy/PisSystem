@@ -1,0 +1,1597 @@
+diff --git a/Makefile b/Makefile
+index 909c3a6..cc7914b 100755
+--- a/Makefile
++++ b/Makefile
+@@ -40,8 +40,10 @@ CFLAGS += -DHAVE_PIPE2=1
+ CFLAGS += -DNN_HAVE_PIPE2=1
+ CFLAGS += -DNN_HAVE_CLOCK_MONOTONIC=1
+ 
++CFLAGS += -DNN_USE_POLL
+ CFLAGS += -DNN_HAVE_POLL=1
+-CFLAGS += -DNN_USE_EPOLL=1
++
++#CFLAGS += -DNN_USE_EPOLL=1
+ CFLAGS += -DNN_HAVE_ACCEPT4=1
+ CFLAGS += -DNN_HAVE_SOCKETPAIR=1
+ CFLAGS += -DNN_HAVE_SEMAPHORE=1
+@@ -147,8 +149,7 @@ SOURCE  += src/nanomsg/protocols/survey/xsurveyor.c
+ 
+ SOURCE  += src/nanomsg/transports/utils/backoff.c
+ SOURCE  += src/nanomsg/transports/utils/dns.c
+-SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo.inc
+-SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo_a.inc
++#SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo.inc
+ SOURCE  += src/nanomsg/transports/utils/iface.c
+ SOURCE  += src/nanomsg/transports/utils/literal.c
+ SOURCE  += src/nanomsg/transports/utils/port.c
+@@ -186,21 +187,20 @@ SOURCE  += src/nanomsg/transports/ws/ws_handshake.c
+ SOURCE  += src/nanomsg/transports/ws/sha1.c
+ 
+ 		################unix##############
+-SOURCE  += src/nanomsg/aio/usock_posix.inc
+-SOURCE  += src/nanomsg/aio/worker_posix.inc
+-SOURCE  += src/nanomsg/utils/thread_posix.inc
++#SOURCE  += src/nanomsg/aio/usock_posix.inc
++#SOURCE  += src/nanomsg/aio/worker_posix.inc
++#SOURCE  += src/nanomsg/utils/thread_posix.inc
+ 
+ 		###############NN_HAVE_POLL)
+     	#add_definitions (-DNN_USE_POLL)
+-SOURCE  += src/nanomsg/aio/poller_poll.inc
+-
++#SOURCE  += src/nanomsg/aio/poller_poll.inc
++SOURCE   += src/nanomsg/aio/poller.c
+ 		##############NN_HAVE_EVENTFD
+-SOURCE  += src/nanomsg/utils/efd_eventfd.h
+-SOURCE  += src/nanomsg/utils/efd_eventfd.inc
++#SOURCE  += src/nanomsg/utils/efd_eventfd.h
++#SOURCE  += src/nanomsg/utils/efd_eventfd.c
+ 
+-#SOURCE  += src/timer/evtimer.c
+ 
+-#nanomsg
++#evio
+ SOURCE  += src/net/evnet.c
+ 
+ #nanomsg
+diff --git a/src/evio/evio.c b/src/evio/evio.c
+index 8130bb9..c76a332 100755
+--- a/src/evio/evio.c
++++ b/src/evio/evio.c
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-16 11:42:51
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-11-30 10:36:29
++ * @LastEditTime: 2020-12-01 15:48:19
+  */ 
+ #include <stdio.h>
+ #include <unistd.h>
+@@ -13,36 +13,35 @@
+ #include <time.h>
+ #include <sys/time.h>
+ #include "evio.h"
+- 
+ 
+-uint64_t get_cur_time_ms(void)
+-{
+-    
+-    struct timespec ts;
+-    clock_gettime(CLOCK_MONOTONIC, &ts);
++#define TIMEMOUT_TM  1000
+ 
+-    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
++uint64_t EVIO_Get_CurentTime_ms(void)
++{
++    struct timespec tts;
++    clock_gettime(CLOCK_MONOTONIC, &tts);
++    return tts.tv_sec * 1000 + tts.tv_nsec / 1000000;
+ }
+ 
+-#define TIMEMOUT_TM  1000
+ 
+ 
+-static int _ev_calc_timeout(ev_ctl_t *evctl )
++
++static int _EVIO_Calc_Timeout(T_EVENT_CTL *_ptEventCtl)
+ {
+-    ev_timer_ctl_t *ctl = evctl->timer_ctl;//事件轮询定时器控制
+-    if (!ctl->size(ctl))
++    T_EV_TIMER_CTRL *ptEvTimerCtl = _ptEventCtl->ptEventTimerCtrl;//事件轮询定时器控制
++    if (!ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl))
+         return TIMEMOUT_TM;
+ 
+-    uint64_t now =get_cur_time_ms();
++    uint64_t now =EVIO_Get_CurentTime_ms();
+     //printf("now===%d\r\n",now);
+-    ev_timer_t *timer = ctl->peek(ctl);/*最小堆root 节点查看*/
++    T_EV_TIMER *ptEvenTimer = ptEvTimerCtl->pfEvTimerCtlPeek(ptEvTimerCtl);/*最小堆root 节点查看*/
+     //printf("peek:%p\r\n",timer);
+     //printf("expire===%d\r\n",timer->expire);
+ 	/* 已经有任务超时 */
+-    if (timer->expire <= now)
++    if (ptEvenTimer->u64Expire <= now)
+         return 0;
+ 
+-    uint64_t period = timer->expire - now;
++    uint64_t period = ptEvenTimer->u64Expire - now;
+     if (period >= TIMEMOUT_TM)
+         return TIMEMOUT_TM;
+ 
+@@ -50,20 +49,20 @@ static int _ev_calc_timeout(ev_ctl_t *evctl )
+     return period;
+ }
+ 
+-static void _ev_timer_run(ev_ctl_t *evctl)
++static void _EVIO_EvTimer_Run(T_EVENT_CTL *_ptEventCtl)
+ {
+ 
+-    ev_timer_ctl_t *ctl = evctl->timer_ctl;//事件轮询定时器控制
+-    uint64_t now = get_cur_time_ms();
+-    uint64_t max_times = ctl->size(ctl);
++    T_EV_TIMER_CTRL *ptEvTimerCtl = _ptEventCtl->ptEventTimerCtrl;//事件轮询定时器控制
++    uint64_t now = EVIO_Get_CurentTime_ms();
++    uint64_t max_times = ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl);
+     uint64_t cur_times = 0;
+ 
+-    while (ctl->size(ctl) && cur_times++ < max_times) {
+-        ev_timer_t *timer = ctl->peek(ctl);
+-        if (timer->expire <= now) {
+-            ctl->pop(ctl, NULL);
+-			if(timer->cb){
+-                timer->cb(evctl, timer, timer->arg);
++    while (ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl) && cur_times++ < max_times) {
++        T_EV_TIMER *ptEvenTimer = ptEvTimerCtl->pfEvTimerCtlPeek(ptEvTimerCtl);
++        if (ptEvenTimer->u64Expire <= now) {
++            ptEvTimerCtl->pfEvTimerCtlPop(ptEvTimerCtl, NULL);
++			if(ptEvenTimer->pfEvTimerCb){
++                ptEvenTimer->pfEvTimerCb(ptEvTimerCtl, ptEvenTimer, ptEvenTimer->pvArg);
+             }
+         } else {
+             break;
+@@ -72,164 +71,182 @@ static void _ev_timer_run(ev_ctl_t *evctl)
+ }
+ 
+ /*事件轮询*/
+-void ev_loop_start(ev_ctl_t *evctl)
++void EVIO_EventCtlLoop_Start(T_EVENT_CTL *_ptEventCtl)
+ {
+-    _ev_timer_run(evctl);
+-    int timeout = _ev_calc_timeout(evctl);
+-    int ev_cnt = epoll_wait(evctl->epfd, evctl->evlist, 32, timeout);
++    _EVIO_EvTimer_Run(_ptEventCtl);
++    int timeout = _EVIO_Calc_Timeout(_ptEventCtl);
++    int ev_cnt = epoll_wait(_ptEventCtl->iEpolFd, _ptEventCtl->atEpollEventList, 32, timeout);
+ 	if (-1 == ev_cnt) {
+ 		return;
+ 	}
+-    evctl->looping = 1;
++    _ptEventCtl->bLooping = 1;
+ 
+ 	int i;
+     for (i = 0; i < ev_cnt; ++i) {
+-        ev_fd_t *evfd = evctl->evlist[i].data.ptr;
+-        uint32_t events = evctl->evlist[i].events;
++        T_EVENT_FD *ptEventFd = _ptEventCtl->atEpollEventList[i].data.ptr;
++        uint32_t events = _ptEventCtl->atEpollEventList[i].events;
+ 
+-        if (evfd->is_del)
++        if (ptEventFd->bIsDel)
+             continue;
+-        if ((events & EPOLLIN) && (evfd->ev & EPOLLIN))
+-            evfd->cb(evctl, evfd, evfd->fd, EV_READ, evfd->arg);
+-        if (!evfd->is_del && (events & EPOLLOUT) && (evfd->ev & EPOLLOUT))
+-            evfd->cb(evctl, evfd, evfd->fd, EV_WRITE, evfd->arg);
+-        if (!evfd->is_del && events & (EPOLLHUP | EPOLLERR))
+-            evfd->cb(evctl, evfd, evfd->fd, EV_ERROR, evfd->arg);
++        if ((events & EPOLLIN) && (ptEventFd->iEvents & EPOLLIN))
++            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_READ, ptEventFd->pvArg);
++        if (!ptEventFd->bIsDel && (events & EPOLLOUT) && (ptEventFd->iEvents & EPOLLOUT))
++            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_WRITE, ptEventFd->pvArg);
++        if (!ptEventFd->bIsDel && events & (EPOLLHUP | EPOLLERR))
++            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_ERROR, ptEventFd->pvArg);
+     }
+ 
+-    evctl->looping = 0;
++    _ptEventCtl->bLooping = 0;
+ 
+-	for (i = 0; i < evctl->deferred_cnt; ++i)
+-        free(evctl->deferred_to_close[i]);
++	for (i = 0; i < _ptEventCtl->u32DeferredCnt; ++i)
++        free(_ptEventCtl->pttEventFDeferred_to_close[i]);
+ 
+-	evctl->deferred_cnt = 0;
++	_ptEventCtl->u32DeferredCnt = 0;
+ }
+ 
++#if 0
+ /*设置事件回调参数  以及传值*/
+-static void ev_fd_set(ev_ctl_t *evctl, ev_fd_t *evfd, ev_cb_t cb, void *arg)
++static void _EVIO_EventFd_Set(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, PF_EVENT_CALLBACK _pfCB, void *_pvArg)
+ {
+-    evfd->cb = cb;
+-    evfd->arg = arg;
++    _ptEventFd->pfEventCallBack = _pfCB;
++    _ptEventFd->pvArg = _pvArg;
+ }
++#endif
++
+ /*添加fd 进evfd 并加入epool 事件 中*/
+- ev_fd_t *ev_fd_add(ev_ctl_t *evctl, int32_t fd, ev_cb_t cb, void *arg)
++ T_EVENT_FD *EVIO_EventFd_Add(T_EVENT_CTL *_ptEventCtl, int32_t _ifd, PF_EVENT_CALLBACK _pfCB, void *_pvArg)
+ {
+-    ev_fd_t *evfd = calloc(1, sizeof(ev_fd_t));
+-	if (NULL == evfd)
++    T_EVENT_FD *ptEventFd = calloc(1, sizeof(T_EVENT_FD));
++	if (NULL == ptEventFd)
+ 		return NULL;
+ 
+-	evfd->is_del = 0;
+-    evfd->fd = fd;
+-    evfd->cb = cb;
+-    evfd->arg = arg;
+-    struct epoll_event add_event;
+-    add_event.events = 0;
+-    add_event.data.ptr = evfd;
+-    if (-1 == epoll_ctl(evctl->epfd, EPOLL_CTL_ADD, fd, &add_event)) {
+-        free(evfd);
++	ptEventFd->bIsDel = 0;
++    ptEventFd->iFd = _ifd;
++    ptEventFd->pfEventCallBack = _pfCB;
++    ptEventFd->pvArg = _pvArg;
++    struct epoll_event tEpollEvent;
++    tEpollEvent.events = 0;
++    tEpollEvent.data.ptr = ptEventFd;
++    if (-1 == epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_ADD, _ifd, &tEpollEvent)) {
++        free(ptEventFd);
+         return NULL;
+     }
+ 
+-    return evfd;
++    return ptEventFd;
+ }
+ 
+ /*移除ev_fd 进一步移除 ev_fd_t*/
+- void ev_fd_del(ev_ctl_t *evctl, ev_fd_t *evfd)
++ void EVIO_EventFd_Del(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    epoll_ctl(evctl->epfd, EPOLL_CTL_DEL, evfd->fd, NULL);
+-    if (evctl->looping) {
+-        evfd->is_del = 1;
+-        if (evctl->deferred_cnt == evctl->deferred_cap)
++    epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_DEL, _ptEventFd->iFd, NULL);
++    if (_ptEventCtl->bLooping) {
++        _ptEventFd->bIsDel = 1;
++        if (_ptEventCtl->u32DeferredCnt == _ptEventCtl->u32DeferredCap)
+         {
+-        evctl->deferred_to_close = realloc(evctl->deferred_to_close,++evctl->deferred_cap * sizeof(ev_fd_t));
++         _ptEventCtl->pttEventFDeferred_to_close = realloc(_ptEventCtl->pttEventFDeferred_to_close,++_ptEventCtl->u32DeferredCap * sizeof(T_EVENT_FD));
+         }
+-        evctl->deferred_to_close[evctl->deferred_cnt++] = evfd;
++        _ptEventCtl->pttEventFDeferred_to_close[_ptEventCtl->u32DeferredCnt++] = _ptEventFd;
+         return;
+     }
+-    free(evfd);
+-	evfd = NULL;
++    free(_ptEventFd);
++	_ptEventFd = NULL;
+ }
+ 
+-static void _ev_watch_events(ev_ctl_t *evctl, ev_fd_t *evfd)
++static void _EVIO_Watch_Events(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    struct epoll_event mod_event;
+-    mod_event.events = evfd->ev;
+-    mod_event.data.ptr = evfd;
+-    epoll_ctl(evctl->epfd, EPOLL_CTL_MOD, evfd->fd, &mod_event);
++    struct epoll_event tEpollEventMod;
++    tEpollEventMod.events = _ptEventFd->iEvents;
++    tEpollEventMod.data.ptr = _ptEventFd;
++    epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_MOD, _ptEventFd->iFd, &tEpollEventMod);
+ }
+ 
+-void ev_watch_write(ev_ctl_t *evctl, ev_fd_t *evfd)
++void EVIO_Event_Watch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    evfd->ev |= EPOLLOUT;
+-    _ev_watch_events(evctl, evfd);
++    _ptEventFd->iEvents |= EPOLLOUT;
++    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+ }
+ 
+-void ev_unwatch_write(ev_ctl_t *evctl, ev_fd_t *evfd)
++void EVIO_Event_UnWatch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    evfd->ev &= ~EPOLLOUT;
+-    _ev_watch_events(evctl, evfd);
++    _ptEventFd->iEvents &= ~EPOLLOUT;
++    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+ }
+ 
+-void ev_watch_read(ev_ctl_t *evctl, ev_fd_t *evfd)
++void EVIO_Event_Watch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    evfd->ev |= EPOLLIN;
+-    _ev_watch_events(evctl, evfd);
++    _ptEventFd->iEvents |= EPOLLIN;
++    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+ }
+ 
+-void ev_unwatch_read(ev_ctl_t *evctl, ev_fd_t *evfd)
++void EVIO_Event_UnWatch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+ {
+-    evfd->ev &= ~EPOLLIN;
+-    _ev_watch_events(evctl, evfd);
++    _ptEventFd->iEvents &= ~EPOLLIN;
++    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+ }
+ 
+ /*添加一个定时器 事件控制*/
+-void ev_init_timer(ev_timer_t *timer, uint64_t timeout_ms, ev_timer_cb_t cb, void *arg)
++void EVIO_EventTimer_Init(T_EV_TIMER *timer, uint64_t _u64timeout_ms, PF_EVTIMER_CB _pfEvTimerCB, void *_pvArg)
+ {
+-	
+-    uint64_t expire = get_cur_time_ms() + timeout_ms;
+-    timer->expire = expire;
+-    timer->index = -1;
+-    //printf("expire----%d\r\n",expire);
+-    timer->cb = cb;
+-    timer->arg = arg;
++    uint64_t expire = EVIO_Get_CurentTime_ms() + _u64timeout_ms;
++    timer->u64Expire = expire;
++    timer->u64Index = -1;
++    timer->pfEvTimerCb = _pfEvTimerCB;
++    timer->pvArg = _pvArg;
++    printf("init.....over...%p\r\n",timer);
+ 	
+ }
+ 
+-void ev_start_timer(ev_ctl_t *evctl,ev_timer_t *timer)
++void EVIO_EventTimer_Start(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer)
+ {
+-   ev_timer_ctl_t *ctl = evctl->timer_ctl;
+-    ctl->push(ctl, timer);
++   
++        T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
++       printf("Enter...%p.-->%p---->timer:%p\n",_ptEventCtl,ptEventTimerCtl,_ptEventTimer);
++        ptEventTimerCtl->pfEvTimerCtlPush(ptEventTimerCtl, _ptEventTimer);
++    
+ }
+ 
+ /*停止事件轮询定时器，即删除定时器*/
+-void ev_stop_timer(ev_ctl_t *evctl, ev_timer_t *timer)
++void EVIO_EventTimer_Stop(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer)
+ {
+-	ev_timer_ctl_t *ctl = evctl->timer_ctl;
+-    ctl->remove(ctl, timer);
++	T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
++    ptEventTimerCtl->pfEvTimerCtlRemove(_ptEventCtl, _ptEventTimer);
+ }
+-void evctl_free(ev_ctl_t *evctl)
++void EVIO_EventCtl_Free(T_EVENT_CTL *_ptEventCtl)
+ {
+-	close(evctl->epfd);
+-	evctl->timer_ctl->dtor(evctl->timer_ctl);
+-	free(evctl->timer_ctl);
+-	if (evctl->deferred_to_close)
+-		free(evctl->deferred_to_close);
+-	free(evctl);
++	close(_ptEventCtl->iEpolFd);
++	_ptEventCtl->ptEventTimerCtrl->pfEvTimerCtlDtor(_ptEventCtl->ptEventTimerCtrl);
++	free(_ptEventCtl->ptEventTimerCtrl);
++	if (_ptEventCtl->pttEventFDeferred_to_close)
++		free(_ptEventCtl->pttEventFDeferred_to_close);
++	free(_ptEventCtl);
+ }
+ 
+-ev_ctl_t *evctl_create(void)
++T_EVENT_CTL *EVIO_EventCtl_Create(void)
+ {
+-	ev_ctl_t *evctl = calloc(1, sizeof(ev_ctl_t));
+-	if (NULL == evctl)
+-		goto err1;
++	T_EVENT_CTL *ptEventCtl = calloc(1, sizeof(T_EVENT_CTL));
++	if (NULL == ptEventCtl)
++        {
++            printf("%s-%d\n",__func__,__LINE__);
++            return NULL;   
++        }
+ 
+-	evctl->epfd = epoll_create1(0);
+-	if (-1 == evctl->epfd)
+-		goto err2;
++	ptEventCtl->iEpolFd = epoll_create1(0);
++	if (-1 == ptEventCtl->iEpolFd)
++        {
++            printf("%s-%d\n",__func__,__LINE__);
++            free(ptEventCtl);
++            return NULL;
++        }
+ 
+-	evctl->timer_ctl = ev_timer_ctl_create();
+-	if (NULL == evctl->timer_ctl)
+-		goto err3;
++	ptEventCtl->ptEventTimerCtrl = EV_TIMER_Ctl_Create();
++    printf("ptEventCtl->ptEventTimerCtrl:%p\n",ptEventCtl->ptEventTimerCtrl);
++	if (NULL == ptEventCtl->ptEventTimerCtrl)
++	    {
++            printf("%s-%d\n",__func__,__LINE__);
++            close(ptEventCtl->iEpolFd);
++            free(ptEventCtl);
++            return NULL;
++        }
+ 
+     #if 0
+ 	evctl->start = ev_loop_start;
+@@ -244,12 +261,5 @@ ev_ctl_t *evctl_create(void)
+ 	evctl->timer_stop = ev_stop_timer;
+     #endif
+ 
+-	return evctl;
+-
+-err3:
+-	close(evctl->epfd);
+-err2:
+-	free(evctl);
+-err1:
+-	return NULL;
++	return ptEventCtl;
+ }
+\ No newline at end of file
+diff --git a/src/evio/evio.h b/src/evio/evio.h
+index ba85736..c871f1d 100755
+--- a/src/evio/evio.h
++++ b/src/evio/evio.h
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-16 11:42:41
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-22 10:46:40
++ * @LastEditTime: 2020-12-01 15:20:53
+  */ 
+ 
+ #ifndef _EVIO_H_
+@@ -14,51 +14,48 @@
+ #include <sys/epoll.h>
+ #include "../timer/evtimer.h"
+ 
+-typedef struct ev_fd   ev_fd_t;
+-typedef struct ev_ctl  ev_ctl_t;
+-typedef enum   ev_type ev_type_t;
+-typedef void (*ev_cb_t)(ev_ctl_t *evctl, ev_fd_t *evfd, int32_t fd, ev_type_t evtype, void *arg);
+-enum ev_type {
++typedef struct _T_EVENT_FD   T_EVENT_FD;
++typedef struct _T_EVENT_CTL  T_EVENT_CTL;
++typedef enum   _E_EV_TYPE    E_EV_TYPE;
++typedef void (*PF_EVENT_CALLBACK)(T_EVENT_CTL *_ptEventCtrl, T_EVENT_FD *_ptEventFd, int32_t _fd, E_EV_TYPE _e_type, void *_arg);
++enum _E_EV_TYPE {
+ 	EV_READ,
+ 	EV_WRITE,
+ 	EV_ERROR
+ };
+ 
+-struct ev_fd {
+-	int32_t fd;					/* handler */
+-	uint32_t ev;				/* 事件*/
+-	char is_del;
+-	ev_cb_t cb;					/* 用户回调函数*/
+-	void *arg;					/* 用户参数 */
++struct _T_EVENT_FD {
++	int32_t iFd;					/* handler */
++	uint32_t iEvents;				/* 事件*/
++	char 	bIsDel;
++	PF_EVENT_CALLBACK pfEventCallBack;					/* 用户回调函数*/
++	void *pvArg;					/* 用户参数 */
+ };
+ 
+ #if 0
+ /*epool 事件轮询*/
+ typedef void (*ev_loop_start_t)(ev_ctl_t *);
+-
+ /*添加fd 进epool 事件 中*/
+ typedef ev_fd_t *(*ev_fd_add_t)(ev_ctl_t *, int32_t, ev_cb_t, void *);
+-
+ /*移除ev_fd 进一步移除 ev_fd_t*/
+ typedef void (*ev_fd_del_t)(ev_ctl_t *, ev_fd_t *);
+-
+ typedef void (*ev_fd_set_t)(ev_ctl_t *, ev_fd_t *, ev_cb_t, void *);
+ typedef void (*ev_watch_write_t)(ev_ctl_t *, ev_fd_t *);
+ typedef void (*ev_watch_read_t)(ev_ctl_t *, ev_fd_t *);
+ typedef void (*ev_unwatch_write_t)(ev_ctl_t *, ev_fd_t *);
+ typedef void (*ev_unwatch_read_t)(ev_ctl_t *, ev_fd_t *);
+-typedef void (*ev_start_timer_t)(ev_ctl_t *, ev_timer_t *, uint64_t, ev_timer_cb_t, void *);
+-typedef void (*ev_stop_timer_t)(ev_ctl_t *, ev_timer_t *);
++typedef void (*ev_start_timer_t)(ev_ctl_t *, T_EV_TIMER *, uint64_t, ev_timer_cb_t, void *);
++typedef void (*ev_stop_timer_t)(ev_ctl_t *, T_EV_TIMER *);
+ #endif
+ 
+-struct ev_ctl {
+-	int32_t epfd;
+-	struct epoll_event evlist[32];
+-	char looping;
+-	uint32_t deferred_cnt;
+-	uint32_t deferred_cap;
+-	ev_fd_t **deferred_to_close;
+-	ev_timer_ctl_t *timer_ctl;  //定时器超时控制
++struct _T_EVENT_CTL {
++	int32_t            iEpolFd;
++	struct epoll_event atEpollEventList[32];
++	char               bLooping;
++	uint32_t           u32DeferredCnt;
++	uint32_t           u32DeferredCap;
++	T_EVENT_FD 	     **pttEventFDeferred_to_close;
++	T_EV_TIMER_CTRL   *ptEventTimerCtrl;  //定时器超时控制
+ 	#if 0
+ 	ev_loop_start_t start;
+ 	ev_fd_add_t add;
+@@ -74,33 +71,31 @@ struct ev_ctl {
+ 	#endif
+ };
+ 
+-uint64_t get_cur_time_ms(void);
++uint64_t EVIO_Get_CurentTime_ms(void);
+ 
+-ev_ctl_t *evctl_create(void);
++T_EVENT_CTL *EVIO_EventCtl_Create(void);
+ 
+ /*事件轮询*/
+-void ev_loop_start(ev_ctl_t *evctl);
++void EVIO_EventCtlLoop_Start(T_EVENT_CTL *_ptEventCtl);
+ /*初始化定时器，设置定时器超时时间 以及定时器回调 参数等*/
+-void ev_init_timer(ev_timer_t *timer, uint64_t timeout_ms, ev_timer_cb_t cb, void *arg);
++void EVIO_EventTimer_Init(T_EV_TIMER *_ptEventTimer, uint64_t _u64timeout_ms, PF_EVTIMER_CB _pfEvTimerCB, void *_pvArg);
+ 
+ /*添加一个定时器 事件控制*/
+-void ev_start_timer(ev_ctl_t *evctl,ev_timer_t *timer);
++void EVIO_EventTimer_Start(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer);
+ 
+ 
+ /*停止事件轮询定时器，即删除定时器*/
+-void ev_stop_timer(ev_ctl_t *evctl, ev_timer_t *timer);
++void EVIO_EventTimer_Stop(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer);
+ 
+-void evctl_free(ev_ctl_t *evctl);
++void EVIO_EventCtl_Free(T_EVENT_CTL *_ptEventCtl);
+ /*添加fd 进evfd 并加入epool 事件 中*/
+-ev_fd_t *ev_fd_add(ev_ctl_t *evctl, int32_t fd, ev_cb_t cb, void *arg);
++T_EVENT_FD *EVIO_EventFd_Add(T_EVENT_CTL *_ptEventCtl, int32_t _ifd, PF_EVENT_CALLBACK _pfCB, void *_pvArg);
+ 
+ /*移除ev_fd 进一步移除 ev_fd_t*/
+-void ev_fd_del(ev_ctl_t *evctl, ev_fd_t *evfd);
+-
+-void ev_watch_write(ev_ctl_t *evctl, ev_fd_t *evfd);
+-void ev_unwatch_write(ev_ctl_t *evctl, ev_fd_t *evfd);
+-
+-void ev_watch_read(ev_ctl_t *evctl, ev_fd_t *evfd);
+-void ev_unwatch_read(ev_ctl_t *evctl, ev_fd_t *evfd);
++void EVIO_EventFd_Del(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
++void EVIO_Event_Watch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
++void EVIO_Event_UnWatch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
++void EVIO_Event_Watch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
++void EVIO_Event_UnWatch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
+ 
+ #endif
+\ No newline at end of file
+diff --git a/src/main.c b/src/main.c
+index a748597..533b3a2 100755
+--- a/src/main.c
++++ b/src/main.c
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-15 11:02:55
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-11-30 14:31:00
++ * @LastEditTime: 2020-12-01 15:50:08
+  */ 
+ 
+ 
+@@ -26,12 +26,12 @@
+ 
+ 
+ 
+-void timer_out_ctrl(void *_self, ev_timer_t *ev_timer,  void *arg)
++void timer_out_ctrl(void *_self, T_EV_TIMER *ev_timer,  void *arg)
+ {
+-    ev_ctl_t * evctl = (ev_ctl_t * )_self;
+-    printf("++++++++++++++++++++++++++++++++++++++++timout->index:%d tm:%d,%p\r\n",ev_timer->index,ev_timer->expire,evctl);
+-	ev_init_timer(ev_timer,1000,timer_out_ctrl,NULL);
+-    ev_start_timer(evctl,ev_timer);
++    T_EVENT_CTL * evctl = (T_EVENT_CTL * )_self;
++    printf("++++++++++++++++++++timout->index:%ld tm:%ld,%p\r\n",ev_timer->u64Index,ev_timer->u64Expire,evctl);
++	EVIO_EventTimer_Init(ev_timer,1000,timer_out_ctrl,NULL);
++    EVIO_EventTimer_Start(evctl,ev_timer);
+ }
+ 
+ #if 0
+@@ -82,13 +82,13 @@ static void watcher_B2A_cb (ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t ty
+ #endif
+ 
+ 
+-void handle_udp_event(ev_ctl_t *ctl, struct servfds *sfd)
++void handle_udp_event(T_EVENT_CTL *ctl, struct servfds *sfd)
+ {
+ 	struct server *s = sfd->arg;
+ 	printf("handle udp event....\r\n");
+ }
+ 
+-static void main_loop_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
++static void main_loop_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
+ {
+ 	struct servfds *sfd = arg;
+ 	struct server *s = sfd->arg;
+@@ -98,13 +98,13 @@ static void main_loop_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type,
+ 	        sfd->cb(evctl, sfd);
+ 	        break;
+ 		case EV_WRITE:
+-			printf("Main loop write event, unexpected");
++			printf("Main loop write event, unexpected\n");
+ 			break;
+ 		case EV_ERROR:
+-			printf("Main loop error event, unexpected");
++			printf("Main loop error event, unexpected\n");
+ 			break;
+ 	    default:
+-			printf("Main loop unknow event, unexpected");
++			printf("Main loop unknow event, unexpected\n");
+     }
+ }
+ 
+@@ -112,7 +112,7 @@ int32_t nn_socket_init(struct server *s)
+ {
+ 	struct servloop *sl = &s->sloop;
+ 	size_t size = sizeof(size_t);
+-	/*sl->sfds_udp.n = nn_socket(AF_SP, NN_PAIR);
++	sl->sfds_udp.n = nn_socket(AF_SP, NN_PAIR);
+ 	if (-1 == sl->sfds_udp.n)
+ 		goto err;
+ 	if (-1 == nn_bind(sl->sfds_udp.n, "inproc://udp2serv"))
+@@ -120,18 +120,18 @@ int32_t nn_socket_init(struct server *s)
+ 	
+ 	if (-1 == nn_getsockopt(sl->sfds_udp.n, NN_SOL_SOCKET, NN_RCVFD, (char *)&sl->sfds_udp.s, &size))
+ 		goto err1;
+-	*/
++	
+ 	return 0;
+ err1:
+-	//nn_close(sl->sfds_udp.n);
++	nn_close(sl->sfds_udp.n);
+ err:
+ 	return -1;
+ }
+ void nn_socket_close(struct server *s)
+ {
+ 	struct servloop *sl = &s->sloop;
+-	//close(sl->sfds_udp.s);
+-	//nn_close(sl->sfds_udp.n);
++	close(sl->sfds_udp.s);
++	nn_close(sl->sfds_udp.n);
+ 
+ }
+ int32_t  main_loop(struct server *s)
+@@ -144,31 +144,30 @@ int32_t  main_loop(struct server *s)
+ 	sl->sfds_udp.cb = handle_udp_event;//UDP enventloop main server
+     sl->sfds_udp.arg = s;
+ 
+-	 s->sloop.evctl = evctl_create();  //创建一个事件控制器 creator event contoler
++	 s->sloop.evctl = EVIO_EventCtl_Create();  //创建一个事件控制器 creator event contoler
+ 	 if(NULL == s->sloop.evctl)
+ 	 goto err1;
+ 	 
+-    sl->sfds_udp.evfd = ev_fd_add(sl->evctl, sl->sfds_udp.s, main_loop_cb, &sl->sfds_udp);//add the event fd 
++    sl->sfds_udp.evfd = EVIO_EventFd_Add(sl->evctl, sl->sfds_udp.s, main_loop_cb, &sl->sfds_udp);//add the event fd 
+ 	if (NULL == sl->sfds_udp.evfd)
+ 		goto err2;
+-	 ev_watch_read(s->sloop.evctl, sl->sfds_udp.evfd);
+-
+-	 ev_init_timer(&s->ev_timer,1000,timer_out_ctrl,NULL);
+-	 ev_start_timer(s->sloop.evctl,&s->ev_timer);
++	 EVIO_Event_Watch_Read(s->sloop.evctl, sl->sfds_udp.evfd);
++	 EVIO_EventTimer_Init(&s->ev_timer,1000,timer_out_ctrl,NULL);
++	 EVIO_EventTimer_Start(s->sloop.evctl,&s->ev_timer);
+ 
+ 	 return 0;
+ err2:
+-	evctl_free(sl->evctl);
++	EVIO_EventCtl_Free(sl->evctl);
+ err1:
+-	//nn_socket_close(s);
++	nn_socket_close(s);
+ 	return -1;
+ }
+ 
+ void main_loop_del(struct server *s)
+ {
+ 	struct servloop *sl = &s->sloop;
+-	ev_fd_del(sl->evctl, sl->sfds_udp.evfd);
+-	evctl_free(sl->evctl);
++	EVIO_EventFd_Del(sl->evctl, sl->sfds_udp.evfd);
++	EVIO_EventCtl_Free(sl->evctl);
+ 	nn_socket_close(s);
+ }
+ int main( void )
+@@ -193,11 +192,11 @@ int main( void )
+         pthread_mutex_lock(&server.start_lock);
+         pthread_cond_wait(&server.start_cond, &server.start_lock);
+         pthread_mutex_unlock(&server.start_lock);
+-        printf("start num is %d", server.start_num);    
++        printf("start num is %d\n", server.start_num);    
+   	}
+      while(1)
+      {
+-        ev_loop_start(server.sloop.evctl);
++        EVIO_EventCtlLoop_Start(server.sloop.evctl);
+      }
+ err2:
+ 	printf("main err2...\r\n");
+diff --git a/src/main.h b/src/main.h
+index f30b9ca..cee388c 100755
+--- a/src/main.h
++++ b/src/main.h
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-22 09:04:27
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-11-30 11:57:21
++ * @LastEditTime: 2020-12-01 14:58:45
+  */ 
+ 
+ #ifndef _MAIN_H
+@@ -14,18 +14,18 @@
+ struct servfds {
+ 	int s;			/* sys fd*/
+ 	int n;			/* nanomsg fd */
+-	ev_fd_t *evfd;
+-	void (*cb)(ev_ctl_t *, struct servfds *);
++	T_EVENT_FD *evfd;
++	void (*cb)(T_EVENT_CTL *, struct servfds *);
+ 	void *arg;
+ };
+ 
+ struct servloop {
+-	ev_ctl_t *evctl;
++	T_EVENT_CTL *evctl;
+ 	struct servfds  sfds_udp;//主服务循环 ---》UDP 与main loop 之间的通信
+ };
+ 
+ struct server {
+-    ev_timer_t ev_timer;//添加一个定时器
++    T_EV_TIMER ev_timer;//添加一个定时器
+     struct servloop sloop;//主服务循环
+ 	int32_t start_num; //启动server 服务线程数
+ 	pthread_mutex_t start_lock;
+diff --git a/src/mini-heap/mini-heap.c b/src/mini-heap/mini-heap.c
+index 610f2d5..f8d217c 100755
+--- a/src/mini-heap/mini-heap.c
++++ b/src/mini-heap/mini-heap.c
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-15 10:06:14
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-16 17:56:56
++ * @LastEditTime: 2020-12-01 14:33:47
+  */ 
+ #include <stdlib.h>
+ #include <string.h>
+@@ -16,157 +16,156 @@
+ //#define heap_right(npos) (((npos)*2)+2)          /*npos的右兄弟结点*/
+ 
+ 
+-int  heap_size(void *self)
++int  MiniHeap_Size(void *self)
+ {
+-    Heap *heap = (Heap*)self;
+-    return heap->size;
++    T_HEAP *ptHeap = (T_HEAP*)self;
++    return ptHeap->iSize;
+ }
+ /*heap_init 堆的初始化*/
+-void heap_init(void *self,heap_compare_t compare,heap_destroy_t destroy,heap_index_t index)
++void MiniHeap_Init(void *self,PF_HEAP_COMPARE compare,PF_HEAP_DESTROY destroy,PF_HEAP_INDEX index)
+ {
+-    Heap *heap = (Heap*)self;
++    T_HEAP *ptHeap = (T_HEAP*)self;
+     /*只需要将size设为0，destroy成员指向destroy，将tree指针设置为NULL*/
+-    heap->size = 0;
+-    heap->compare = compare;
+-    heap->destroy = destroy;
+-    heap->index = index;
+-    heap->tree = NULL;
+-
++    ptHeap->iSize = 0;
++    ptHeap->pfCompare = compare;
++    ptHeap->pfDestory = destroy;
++    ptHeap->pfIndex = index;
++    ptHeap->tree = NULL;
+     return ;
+ }
+ /*heap_destroy  销毁堆*/
+-void heap_destroy(void *self)
++void MiniHeap_Destroy(void *self)
+ {
+     int i;
+-     Heap *heap = (Heap*)self;
++     T_HEAP *ptHeap = (T_HEAP*)self;
+     /*移除堆中所有的结点*/
+-    if(heap->destroy != NULL)
++    if(ptHeap->pfDestory != NULL)
+     {
+-        for(i=0; i<heap_size(heap);i++)
++        for(i=0; i<MiniHeap_Size(ptHeap);i++)
+         {
+             /*调用用户自定义函数释放动态分配的数据*/
+-            heap->destroy(heap->tree[i]);
++            ptHeap->pfDestory(ptHeap->tree[i]);
+         }
+     }
+     /*释放为堆分配的空间*/
+-    free(heap->tree);
++    free(ptHeap->tree);
+ 
+-    memset(heap,0,sizeof(Heap));
++    memset(ptHeap,0,sizeof(T_HEAP));
+     return;
+ }
+ 
+ /*heap_insert  向堆中插入结点*/
+-int heap_insert(void *self,const void *data)
++int MiniHeap_Insert(void *self,const void *data)
+ {
+-    void *temp;
++    void *vdtemp;
+     int  ipos;
+     int  ppos;
+-     Heap *heap = (Heap*)self;
+-    int size = (heap_size(heap)+1)*sizeof(void *);
++    T_HEAP *ptHeap = (T_HEAP*)self;
++    int size = (MiniHeap_Size(ptHeap)+1)*sizeof(void *);
+     /*为结点分配空间*/
+-    if((temp = (void **)realloc(heap->tree,size)) == NULL)
++    if((vdtemp = (void **)realloc(ptHeap->tree,size)) == NULL)
+     {
+         return -1;
+     }
+     else
+     {
+-        heap->tree = temp;
++        ptHeap->tree = vdtemp;
+     }
+     /*将结点插入到堆的最末端*/
+-    heap->tree[heap_size(heap)] = (void *)data;
++    ptHeap->tree[MiniHeap_Size(ptHeap)] = (void *)data;
+     /*将新结点向上推动，恢复堆的排序特点*/
+-    ipos = heap_size(heap);    /*堆结点数的数值*/
++    ipos = MiniHeap_Size(ptHeap);    /*堆结点数的数值*/
+ 
+-    if (heap->index) {			
++    if (ptHeap->pfIndex) {			
+ 		/* 设置新节点索引值*/	
+-		heap->index(heap->tree[ipos], ipos);
++		ptHeap->pfIndex(ptHeap->tree[ipos], ipos);
+ 	}
+ 
+-    ppos = heap_parent(ipos);  /*ipos位置结点的父结点*/
++    ppos = HEAP_PARENT(ipos);  /*ipos位置结点的父结点*/
+     /*如果堆不为空，且新成员(优先级)小于父节点==>最小堆模式*/
+-    while(ipos>0 && heap->compare(heap->tree[ppos],heap->tree[ipos])<0)
++    while(ipos>0 && ptHeap->pfCompare(ptHeap->tree[ppos],ptHeap->tree[ipos])<0)
+     {
+         /* 临时存放父节点成员 */
+-        temp = heap->tree[ppos];
++        vdtemp = ptHeap->tree[ppos];
+         /* 新成员存放到父节点位置 */
+-        heap->tree[ppos] = heap->tree[ipos];
++        ptHeap->tree[ppos] = ptHeap->tree[ipos];
+         /* 父节点成员被放置到之前新成员所在的位置 */
+-        heap->tree[ipos] = temp;
++        ptHeap->tree[ipos] = vdtemp;
+ 
+-	    if (heap->index) {			
++	    if (ptHeap->pfIndex) {			
+ 			/* 修改新节点索引值*/ 	
+-			heap->index(heap->tree[ppos], ppos);			
++			ptHeap->pfIndex(ptHeap->tree[ppos], ppos);			
+ 			/* 修改父节点索引值*/ 	
+-			heap->index(heap->tree[ipos], ipos);
++			ptHeap->pfIndex(ptHeap->tree[ipos], ipos);
+ 		}
+         /* 改变新节点成员在指针数组中的下标为之前其父节点的下标值 */
+         ipos = ppos;
+-        ppos = heap_parent(ipos);
++        ppos = HEAP_PARENT(ipos);
+     }
+ 
+     /*堆插入与排序完成，调整堆的结点数量值*/
+-    heap->size++;
++    ptHeap->iSize++;
+ 
+     return 0;
+ }
+ 
+ /*heap_extract 释放堆顶部的结点*/
+-int heap_extract(void *self,void **data)
++int MiniHeap_Extract(void *self,void **data)
+ {
+-    void *save,*temp;
++    void *vdsave,*vdtemp;
+     int  ipos,lpos,rpos,mpos;
+-    Heap *heap = (Heap*)self;
++    T_HEAP *ptHeap = (T_HEAP*)self;
+     /*不允许从空的堆中释放结点*/
+-    if(heap_size(heap) == 0)
++    if(MiniHeap_Size(ptHeap) == 0)
+         return -1;
+ 
+     /*释放堆顶部的结点*/
+     /*首先将data指向将要释放结点的数据*//* 取堆中首元素 */	
+ 	if(NULL != data)
+-    *data = heap->tree[0];
++    *data = ptHeap->tree[0];
+ 
+     /*将save指向未位结点*/
+-    save = heap->tree[heap_size(heap)-1];
++    vdsave = ptHeap->tree[MiniHeap_Size(ptHeap)-1];
+ 
+-    if(heap_size(heap)-1 > 0)
++    if(MiniHeap_Size(ptHeap)-1 > 0)
+     {   /*为堆分配一个稍小一点的空间*/
+-        if((temp = (void **)realloc(heap->tree,(heap_size(heap)-1)*sizeof(void *)))==NULL)
++        if((vdtemp = (void **)realloc(ptHeap->tree,(MiniHeap_Size(ptHeap)-1)*sizeof(void *)))==NULL)
+         {
+             return -1;
+         }
+         else
+         {
+-            heap->tree = temp;
++            ptHeap->tree = vdtemp;
+         }
+         /*调整堆的大小*/
+-        heap->size--;
++        ptHeap->iSize--;
+     }
+     else
+     {   /*只有一个结点，释放并重新管理堆，并返回*/
+-        free(heap->tree);
+-        heap->tree = NULL;
+-        heap->size = 0;
++        free(ptHeap->tree);
++        ptHeap->tree = NULL;
++        ptHeap->iSize = 0;
+         return 0;
+     }
+     /*将末位结点拷贝到根结点中*/
+-    heap->tree[0] = save;
++    ptHeap->tree[0] = vdsave;
+ 
+     /*重新调整树的结构*/
+     ipos = 0;                /*顶元素*/
+-    if (heap->index) {			
+-		heap->index(heap->tree[0], ipos);			
++    if (ptHeap->pfIndex) {			
++		ptHeap->pfIndex(ptHeap->tree[0], ipos);			
+ 	}
+-    lpos = heap_left(ipos);  /*左子结点*/
+-    rpos = heap_right(ipos); /*右子结点*/
++    lpos = HEAP_LEFT(ipos);  /*左子结点*/
++    rpos = HEAP_RIGHT(ipos); /*右子结点*/
+ 
+     /*父结点与两个子结点比较、交换，直到不再需要交换为止，或者结点到达一个叶子位置*/
+     while(1)
+     {
+         /*选择子结点与当前结点进行交换*/
+-        lpos = heap_left(ipos);
+-        rpos = heap_right(ipos);
++        lpos = HEAP_LEFT(ipos);
++        rpos = HEAP_RIGHT(ipos);
+         /*父结点与左子结点位置不正确,左子结点大于其父结点*/
+-        if(lpos < heap_size(heap) && heap->compare(heap->tree[ipos],heap->tree[lpos])<0)
++        if(lpos < MiniHeap_Size(ptHeap) && ptHeap->pfCompare(ptHeap->tree[ipos],ptHeap->tree[lpos])<0)
+         {
+             mpos = lpos;  /* 最小堆模式时，mpos值为当前父节点和左孩子中的优先级高(即值较小者)的下标 */
+         }
+@@ -175,7 +174,7 @@ int heap_extract(void *self,void **data)
+             mpos = ipos;
+         }
+ 
+-        if(rpos < heap_size(heap) && heap->compare(heap->tree[mpos],heap->tree[rpos])<0)
++        if(rpos < MiniHeap_Size(ptHeap) && ptHeap->pfCompare(ptHeap->tree[mpos],ptHeap->tree[rpos])<0)
+         {
+             /* 之前优先级高的节点和右孩子进行比较 */
+             mpos = rpos;
+@@ -190,13 +189,13 @@ int heap_extract(void *self,void **data)
+         else
+         {
+             /*交换当前结点与被选中的结点的内容*/
+-            temp = heap->tree[mpos];
+-            heap->tree[mpos] = heap->tree[ipos];
+-            heap->tree[ipos] = temp;
++            vdtemp = ptHeap->tree[mpos];
++            ptHeap->tree[mpos] = ptHeap->tree[ipos];
++            ptHeap->tree[ipos] = vdtemp;
+ 
+-	        if (heap->index) {			
+-				heap->index(heap->tree[mpos], mpos);			
+-				heap->index(heap->tree[ipos], ipos);
++	        if (ptHeap->pfIndex) {			
++				ptHeap->pfIndex(ptHeap->tree[mpos], mpos);			
++				ptHeap->pfIndex(ptHeap->tree[ipos], ipos);
+ 			}
+             /*下移一层，以继续执行堆排序*/
+             ipos = mpos;
+diff --git a/src/mini-heap/mini-heap.h b/src/mini-heap/mini-heap.h
+index d83c968..efd18e2 100755
+--- a/src/mini-heap/mini-heap.h
++++ b/src/mini-heap/mini-heap.h
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-15 09:58:54
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-16 17:56:48
++ * @LastEditTime: 2020-12-01 14:31:47
+  */ 
+ #ifndef MINI_HEAP_H
+ #define MINI_HEAP_H
+@@ -13,27 +13,27 @@
+ #include <unistd.h>
+ 
+ //#define heap_size(heap) 	((heap)->size)
+-#define heap_parent(npos)	((int32_t)(((npos) - 1) / 2))
+-#define heap_left(npos)		(((npos) * 2) + 1)
+-#define heap_right(npos)	(((npos) * 2) + 2)
++#define HEAP_PARENT(npos)	((int32_t)(((npos) - 1) / 2))
++#define HEAP_LEFT(npos)		(((npos) * 2) + 1)
++#define HEAP_RIGHT(npos)	(((npos) * 2) + 2)
+ 
+-typedef int32_t (*heap_compare_t)(const void *, const void *);
+-typedef void (*heap_destroy_t)(void *);
+-typedef void (*heap_index_t)(void *, const uint32_t);
++typedef int32_t (*PF_HEAP_COMPARE)(const void *, const void *);
++typedef void (*PF_HEAP_DESTROY)(void *);
++typedef void (*PF_HEAP_INDEX)(void *, const uint32_t);
+ 
+ typedef struct {
+-	int32_t	size;
+-	heap_compare_t compare;
+-	heap_destroy_t destroy;
+-	heap_index_t index;
++	int32_t	iSize;
++	PF_HEAP_COMPARE pfCompare;
++	PF_HEAP_DESTROY pfDestory;
++	PF_HEAP_INDEX   pfIndex;
+ 	void **tree;
+-}Heap;
++}T_HEAP;
+ 
+-void heap_init(void *, heap_compare_t, heap_destroy_t,heap_index_t);
+-void heap_destroy(void *);
+-int32_t heap_insert(void *, const void *);
+-int32_t heap_extract(void *, void **);
+-int32_t heap_size(void *);
++void MiniHeap_Init(void *, PF_HEAP_COMPARE, PF_HEAP_DESTROY,PF_HEAP_INDEX);
++void MiniHeap_Destroy(void *);
++int32_t MiniHeap_Insert(void *, const void *);
++int32_t MiniHeap_Extract(void *, void **);
++int32_t MiniHeap_Size(void *);
+ 
+ 
+ 
+diff --git a/src/net/evnet.c b/src/net/evnet.c
+index 55fbb44..15d93d0 100755
+--- a/src/net/evnet.c
++++ b/src/net/evnet.c
+@@ -403,7 +403,7 @@ static ev_udp_t *ev_udp_create(int sock, void *arg)
+ }
+ 
+ /*TCP 读取数据到缓冲区*/
+-static int ev_udp_read(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evudp)
++static int ev_udp_read(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evudp)
+ {
+ 	int cliend_addr_len = sizeof(struct sockaddr_in);
+ 	struct sockaddr_in *client_addr;
+@@ -418,7 +418,7 @@ static int ev_udp_read(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evudp)
+ }
+ 
+ /*发送缓冲区数据*/
+-static int ev_udp_write(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evtcp)
++static int ev_udp_write(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evtcp)
+ {
+    
+ 	
+@@ -426,7 +426,7 @@ static int ev_udp_write(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evtcp)
+ }
+ 
+ /*网络事件控制  读、写、错误*/
+-static void ev_udpnet_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
++static void ev_udpnet_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
+ {
+     ev_udp_t *evudp = arg;
+     int error = 0;
+@@ -449,7 +449,7 @@ static void ev_udpnet_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type,
+ }
+ 
+ /*启动UDP server*/
+-ev_udp_t *udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg)
++ev_udp_t *udp_start(T_EVENT_CTL *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg)
+ {
+ 	 struct sockaddr_in udpaddr;
+ 	 int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+@@ -469,8 +469,8 @@ ev_udp_t *udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb
+ 	 	goto err2;
+ 	  ev_udp_t *evudp = ev_udp_create(sockfd, arg);
+ 	  evudp->cb = cb;
+-	  evudp->evfd =ev_fd_add(evctl,sockfd,ev_udpnet_cb,evudp);
+-	  ev_watch_read(evctl, evudp->evfd);
++	  evudp->evfd =EVIO_EventFd_Add(evctl,sockfd,ev_udpnet_cb,evudp);
++	  EVIO_Event_Watch_Read(evctl, evudp->evfd);
+ 	 return evudp;
+ err2:
+     printf("udp  bind  error.....\r\n");
+diff --git a/src/net/evnet.h b/src/net/evnet.h
+index f065741..5d847c5 100755
+--- a/src/net/evnet.h
++++ b/src/net/evnet.h
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-17 09:53:04
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-22 10:36:50
++ * @LastEditTime: 2020-12-01 14:57:19
+  */ 
+ #ifndef _EVNET_H_
+ #define _EVNET_H_
+@@ -34,7 +34,7 @@ typedef enum ev_tcp_event {
+     EV_TCP_CLOSE
+ }ev_tcp_event_t;
+ 
+-typedef void (*ev_tcp_cb_t)(ev_ctl_t *, struct ev_tcp *, ev_tcp_event_t , void *);
++typedef void (*ev_tcp_cb_t)(T_EVENT_CTL *, struct ev_tcp *, ev_tcp_event_t , void *);
+ //typedef void (*ev_udp_cb_t)(ev_ctl_t *, struct ev_udp *, ev_udp_event_t , void *);
+ 
+ typedef enum ev_tcp_type {
+@@ -58,19 +58,19 @@ typedef struct ev_tcp {
+ 	ev_tcp_type_t type;
+ 	int32_t fd;
+ 	ev_buffer_t *buffer;
+-	ev_fd_t *evfd;
++	T_EVENT_FD *evfd;
+ 	ev_tcp_cb_t cb;
+ 	void *arg;
+ }ev_tcp_t;
+ 
+ 
+ 
+-typedef void (*ev_udp_cb_t)(ev_ctl_t *, struct ev_udp *, void *);
++typedef void (*ev_udp_cb_t)(T_EVENT_CTL *, struct ev_udp *, void *);
+ 
+ typedef struct ev_udp{
+ 	int32_t fd;
+ 	ev_buffer_t *buffer;
+-	ev_fd_t *evfd;
++	T_EVENT_FD *evfd;
+ 	ev_udp_cb_t cb;//接收数据回调控制
+ 	void *arg;
+ }ev_udp_t;
+@@ -83,7 +83,7 @@ void ev_tcp_set(ev_ctl_t *evctl, ev_tcp_t *evtcp, ev_tcp_cb_t cb, void *arg);
+ int ev_tcp_msg(ev_ctl_t *evctl, ev_tcp_t *evtcp, const char *data, int32_t size);
+ #endif
+ 
+-ev_udp_t* udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg);
++ev_udp_t* udp_start(T_EVENT_CTL *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg);
+ 
+ #endif
+ 
+diff --git a/src/timer/evtimer.c b/src/timer/evtimer.c
+index 31194d2..736ba91 100755
+--- a/src/timer/evtimer.c
++++ b/src/timer/evtimer.c
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-16 08:45:42
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-17 16:17:49
++ * @LastEditTime: 2020-12-01 15:15:28
+  */ 
+ 
+ #include <stdio.h>
+@@ -12,78 +12,78 @@
+ #include "evtimer.h"
+ 
+ /*最小堆 定时器值比较*/
+-int32_t ev_timer_compare(const void *v1, const void *v2)
++static int32_t _EV_TIMER_Compare(const void *_v1, const void *_v2)
+ {
+-    const ev_timer_t *t1 = v1;
+-	const ev_timer_t *t2 = v2;
++    const T_EV_TIMER *pt1 = _v1;
++	const T_EV_TIMER *pt2 = _v2;
+ 
+-	if(t1->expire > t2->expire)
++	if(pt1->u64Expire > pt2->u64Expire)
+ 		return -1;
+ 	else
+ 		return 0;
+ }
+ 
+ /*返回最小堆根节点得值*/
+-ev_timer_t *ev_timer_ctl_peek(void *_self)
++static T_EV_TIMER *_EV_TIMER_Peek(void *_self)
+ {
+-	timer_miniHeap *self = _self;
+-	return (ev_timer_t *)(self->tree == NULL ? NULL : self->tree[0]);
++	T_HEAP *ptHeap = (T_HEAP *)_self;
++	return (T_EV_TIMER *)(ptHeap->tree == NULL ? NULL : ptHeap->tree[0]);
+ }
+ /*定时器最小堆索引记录，对删除定时器得值起到作用*/
+-void ev_timer_index(void *_self, const uint32_t _index)
++static void _EV_TIMER_Index(void *_self, const uint32_t _index)
+ {
+-	ev_timer_t *self = _self;
++	T_EV_TIMER *ptEvTimer = (T_EV_TIMER *)_self;
+ 	 //printf("<expire-%d index-%d-->%d\r\n",self->expire,self->index,_index);
+-	self->index = _index;
++	ptEvTimer->u64Index= _index;
+ }
+ 
+ /* 删除某个具体的timer ，这个timer要自己释放*/
+-int32_t ev_timer_ctl_remove(void *_self, ev_timer_t *timer)
++static int32_t _EV_TIMER_Remove(void *_self, T_EV_TIMER *_pTimer)
+ {
+-	timer_miniHeap *self = _self;
+-	void *temp;
++	T_HEAP *ptHeap = (T_HEAP *)_self;
++	void *vdtemp;
+ 	int32_t ipos, lpos, rpos, mpos;
+ 
+-	if (0 == self->size) {
++	if (0 == ptHeap->iSize) {
+ 		return -1;
+ 	}
+ 	/* 最后一个成员顶替要被删除成员的位置*/
+-	printf("delete timer_index:%d\r\n",timer->index);
+-	self->tree[timer->index] = self->tree[self->size - 1];
++	printf("delete timer_index:%d\r\n",_pTimer->u64Index);
++	ptHeap->tree[_pTimer->u64Index] = ptHeap->tree[ptHeap->iSize - 1];
+ 	/* 然后改变其索引值*/
+-	self->index(self->tree[timer->index], timer->index);
++	ptHeap->pfIndex(ptHeap->tree[_pTimer->u64Index], _pTimer->u64Index);
+ 
+-	if (self->size - 1 > 0) {
+-		if ((temp = (void **)realloc(self->tree, (self->size - 1) * sizeof(void *))) == NULL) {
++	if (ptHeap->iSize - 1 > 0) {
++		if ((vdtemp = (void **)realloc(ptHeap->tree, (ptHeap->iSize - 1) * sizeof(void *))) == NULL) {
+ 	      	return -1;
+ 	   	}
+ 	   	else {
+-	    	self->tree = temp;
++	    	ptHeap->tree = vdtemp;
+ 	   	}
+ 
+-	   	self->size--;
++	   	ptHeap->iSize--;
+ 	}
+ 	else {
+-	   	free(self->tree);
+-	   	self->tree = NULL;
+-	   	self->size = 0;
++	   	free(ptHeap->tree);
++	   	ptHeap->tree = NULL;
++	   	ptHeap->iSize = 0;
+ 	   	return 0;
+ 	}
+ 
+-	ipos = timer->index;
++	ipos = _pTimer->u64Index;
+ 
+ 	while (1) {
+-		lpos = heap_left(ipos);
+-		rpos = heap_right(ipos);
++		lpos = HEAP_LEFT(ipos);
++		rpos = HEAP_RIGHT(ipos);
+ 
+-		if (lpos < heap_size(self) && self->compare(self->tree[ipos], self->tree[lpos]) < 0) {
++		if (lpos < MiniHeap_Size(ptHeap) && ptHeap->pfCompare(ptHeap->tree[ipos], ptHeap->tree[lpos]) < 0) {
+ 			mpos = lpos;
+ 		}
+ 		else {
+ 			mpos = ipos;
+ 		}
+ 
+-		if (rpos < heap_size(self) && self->compare(self->tree[mpos], self->tree[rpos]) < 0) {
++		if (rpos < MiniHeap_Size(ptHeap) && ptHeap->pfCompare(ptHeap->tree[mpos], ptHeap->tree[rpos]) < 0) {
+ 			mpos = rpos;
+ 		}
+ 
+@@ -91,13 +91,13 @@ int32_t ev_timer_ctl_remove(void *_self, ev_timer_t *timer)
+ 			break;
+ 		}
+ 		else {
+-			temp = self->tree[mpos];
+-			self->tree[mpos] = self->tree[ipos];
+-			self->tree[ipos] = temp;
++			vdtemp = ptHeap->tree[mpos];
++			ptHeap->tree[mpos] = ptHeap->tree[ipos];
++			ptHeap->tree[ipos] = vdtemp;
+ 			
+-			if (self->index) {			
+-				self->index(self->tree[mpos], mpos);			
+-				self->index(self->tree[ipos], ipos);
++			if (ptHeap->pfIndex) {			
++				ptHeap->pfIndex(ptHeap->tree[mpos], mpos);			
++				ptHeap->pfIndex(ptHeap->tree[ipos], ipos);
+ 			}
+ 			
+ 			ipos = mpos;
+@@ -109,25 +109,22 @@ int32_t ev_timer_ctl_remove(void *_self, ev_timer_t *timer)
+ 
+ 
+ /*创建定时器控制*/
+-ev_timer_ctl_t *ev_timer_ctl_create(void)
++T_EV_TIMER_CTRL *EV_TIMER_Ctl_Create(void)
+ {
+-
+-	ev_timer_ctl_t *ctl = calloc(1, sizeof(ev_timer_ctl_t));
+-	if(NULL == ctl)
+-		goto err;
+-
+-	ctl->dtor = heap_destroy;
+-	ctl->push = heap_insert;
+-	ctl->pop = heap_extract;
+-	ctl->size = heap_size;
+-	ctl->peek = ev_timer_ctl_peek;
++	T_EV_TIMER_CTRL *ptEvTimerCtrl = calloc(1, sizeof(T_EV_TIMER_CTRL));
++	if(NULL == ptEvTimerCtrl)
++		return NULL;
++
++	ptEvTimerCtrl->pfEvTimerCtlDtor = MiniHeap_Destroy;
++	ptEvTimerCtrl->pfEvTimerCtlPush = MiniHeap_Insert;
++	ptEvTimerCtrl->pfEvTimerCtlPop  = MiniHeap_Extract;
++	ptEvTimerCtrl->pfEvTimerCtlSize = MiniHeap_Size;
++	ptEvTimerCtrl->pfEvTimerCtlPeek = _EV_TIMER_Peek;
+ 	//ctl->match = ev_timer_match;
+-	ctl->remove = ev_timer_ctl_remove;
+-	heap_init(ctl, ev_timer_compare,NULL, ev_timer_index);	
+-	return ctl;
+-	
+-err:
+-	return NULL;
++	ptEvTimerCtrl->pfEvTimerCtlRemove = _EV_TIMER_Remove;
++	MiniHeap_Init(ptEvTimerCtrl, _EV_TIMER_Compare,NULL, _EV_TIMER_Index);	
++	return ptEvTimerCtrl;
++
+ 
+ }
+ 
+diff --git a/src/timer/evtimer.h b/src/timer/evtimer.h
+index c09a0d7..3322efb 100755
+--- a/src/timer/evtimer.h
++++ b/src/timer/evtimer.h
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-16 08:45:29
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-07-21 15:53:17
++ * @LastEditTime: 2020-12-01 14:31:02
+  */ 
+ 
+ #ifndef _MINI_TIMER_H_
+@@ -12,35 +12,35 @@
+ #include <stdint.h>
+ #include "../mini-heap/mini-heap.h"
+ 
+-typedef struct _ev_timer_t ev_timer_t;
+-typedef Heap  timer_miniHeap;
+-typedef void (*ev_timer_cb_t)(void *, ev_timer_t *, void *);
++typedef struct _EV_TIMER_T T_EV_TIMER;
+ 
+-struct _ev_timer_t {
+-	uint64_t index;
+-	uint64_t expire;
+-	ev_timer_cb_t cb;
+-	void *arg;
++typedef void (*PF_EVTIMER_CB)(void *, T_EV_TIMER *, void *);
++
++struct _EV_TIMER_T {
++	uint64_t u64Index;
++	uint64_t u64Expire;
++	PF_EVTIMER_CB pfEvTimerCb;
++	void *pvArg;
+ };
+-typedef void (*ev_timer_ctl_dtor_t)(void *);
+-typedef int32_t (*ev_timer_ctl_push_t)(void *, const void *);
+-typedef int32_t (*ev_timer_ctl_pop_t)(void *, void **);
+-typedef int32_t (*ev_timer_ctl_remove_t)(void *, ev_timer_t *);
+-typedef ev_timer_t *(*ev_timer_ctl_peek_t)(void *);
+-typedef int32_t (*ev_timer_ctl_size_t)(void *);
+-typedef ev_timer_t *(*ev_timer_ctl_match_t)(void *, void *);
++typedef void 		(*PF_EVTIMER_CTL_MINIHP_DESTRY)(void *);
++typedef int32_t 	(*PF_EVTIMER_CTL_MINIHP_PUSH)(void *, const void *);
++typedef int32_t 	(*PF_EVTIMER_CTL_MINIHP_POP)(void *, void **);
++typedef int32_t 	(*PF_EVTIMER_CTL_MINIHP_REMOVE)(void *, T_EV_TIMER *);
++typedef T_EV_TIMER *(*PF_EVTIMER_CTL_MINIHP_PEEK)(void *);
++typedef int32_t 	(*PF_EVTIMER_CTL_MINIHP_SIZE)(void *);
++typedef T_EV_TIMER *(*PF_EVTIMER_CTL_MINIHP_MATCH)(void *, void *);
+ 
+-typedef struct ev_timer_ctl_t {
+-	timer_miniHeap    timer_list;    //此变量传递强制转换作为最小堆存储管理来使用
+-	ev_timer_ctl_dtor_t dtor;
+-	ev_timer_ctl_push_t push;
+-	ev_timer_ctl_pop_t pop;
+-	ev_timer_ctl_remove_t remove;
+-	ev_timer_ctl_peek_t peek;
+-	ev_timer_ctl_size_t size;
++typedef struct _T_EV_TIMER_CTRL {
++	T_HEAP    tHeapTimer;    //此变量传递强制转换作为最小堆存储管理来使用
++	PF_EVTIMER_CTL_MINIHP_DESTRY pfEvTimerCtlDtor;
++	PF_EVTIMER_CTL_MINIHP_PUSH 	 pfEvTimerCtlPush;
++	PF_EVTIMER_CTL_MINIHP_POP    pfEvTimerCtlPop;
++	PF_EVTIMER_CTL_MINIHP_REMOVE pfEvTimerCtlRemove;
++	PF_EVTIMER_CTL_MINIHP_PEEK 	 pfEvTimerCtlPeek;
++	PF_EVTIMER_CTL_MINIHP_SIZE 	 pfEvTimerCtlSize;
+ 	//ev_timer_ctl_match_t match;
+-}ev_timer_ctl_t;
++}T_EV_TIMER_CTRL;
+ 
+ 
+-ev_timer_ctl_t *ev_timer_ctl_create(void);
++T_EV_TIMER_CTRL *EV_TIMER_Ctl_Create(void);
+ #endif
+\ No newline at end of file
+diff --git a/src/udp_service.c b/src/udp_service.c
+index 30cdf80..da9502e 100755
+--- a/src/udp_service.c
++++ b/src/udp_service.c
+@@ -4,7 +4,7 @@
+  * @Author: sunzhguy
+  * @Date: 2020-07-22 08:40:25
+  * @LastEditor: sunzhguy
+- * @LastEditTime: 2020-11-30 11:22:56
++ * @LastEditTime: 2020-12-01 15:24:17
+  */ 
+ #include <unistd.h>
+ #include <stdio.h>
+@@ -12,25 +12,28 @@
+ #include "net/evnet.h"
+ #include "udp_service.h"
+ #include "evio/evio.h"
++#include "nanomsg/pair.h"
++#include "nanomsg/nn.h"
+ #include "main.h"
++#include <assert.h>
+ 
+ struct netfds {
+ 	int s;			/* sys fd*/
+ 	int n;			/* nanomsg fd */
+-	ev_fd_t *evfd;
+-	void (*cb)(ev_ctl_t *, struct netfds *);
++	T_EVENT_FD *evfd;
++	void (*cb)(T_EVENT_CTL *, struct netfds *);
+ 	void *arg;
+ };
+ 
+ struct udp_net_ctl {
+ 	char initflag;
+-	ev_ctl_t *evctl;
++	T_EVENT_CTL *evctl;
+ 	struct netfds s2udp;
+ 	struct server *arg;
+ }udp_net_ctl;
+ 
+ 
+- void ev_udp_recv_cb(ev_ctl_t *evctl, ev_udp_t * evudp , void *arg)
++ void ev_udp_recv_cb(T_EVENT_CTL *evctl, ev_udp_t * evudp , void *arg)
+  {
+      int beg =0;
+      ev_buffer_t *b = evudp->buffer;
+@@ -40,7 +43,7 @@ struct udp_net_ctl {
+ 
+ void *udp_broadcast_service(void *arg)
+ {
+-     ev_ctl_t * ev_ctrl = evctl_create();
++     T_EVENT_CTL * ev_ctrl = EVIO_EventCtl_Create();
+     if(ev_ctrl == NULL)
+       goto err;
+      ev_udp_t *udpcon = udp_start(ev_ctrl,"168.168.102.255",5555,ev_udp_recv_cb,NULL);
+@@ -51,23 +54,23 @@ void *udp_broadcast_service(void *arg)
+      }
+      while(1)
+      {
+-        ev_loop_start(ev_ctrl);
++        EVIO_EventCtlLoop_Start(ev_ctrl);
+      }
+ err3:
+-    ev_fd_del(ev_ctrl,udpcon->evfd);
++    EVIO_EventFd_Del(ev_ctrl,udpcon->evfd);
+ err2:
+-    evctl_free(ev_ctrl);
++    EVIO_EventCtl_Free(ev_ctrl);
+ err:
+     abort();
+ }
+ 
+-void handle_data_udp_form_server(ev_ctl_t *evctl, struct netfds *s2udp)
++void handle_data_udp_form_server(T_EVENT_CTL *evctl, struct netfds *s2udp)
+ {
+ 
+ 
+ }
+ 
+-static void server_to_udp_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
++static void server_to_udp_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
+ {
+ 	struct netfds *fds = arg;
+ 	struct net_ctl *ctl = fds->arg;
+@@ -91,7 +94,7 @@ static void server_to_udp_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t t
+ 
+ void udp_ctrl_init(struct udp_net_ctl *ctl)
+ {
+-	#if 0
++	struct servloop * sl =&ctl->arg->sloop;
+     ctl->s2udp.n = nn_socket(AF_SP, NN_PAIR);
+ 	if (-1 == ctl->s2udp.n)
+ 		goto err1;
+@@ -100,28 +103,25 @@ void udp_ctrl_init(struct udp_net_ctl *ctl)
+ 	size_t size = sizeof(size_t);
+ 	if (-1 == nn_getsockopt(ctl->s2udp.n, NN_SOL_SOCKET, NN_RCVFD, (char *)&ctl->s2udp.s, &size))
+ 		goto err2;
+-	#endif
+-	ctl->evctl = evctl_create();
++
++	ctl->evctl = EVIO_EventCtl_Create();
+ 	if (NULL == ctl->evctl)
+ 		goto err3;
+ 	
+-	#if 0
+     ctl->s2udp.cb = handle_data_udp_form_server;
+     ctl->s2udp.arg = ctl;
+-    ctl->s2udp.evfd = ev_fd_add(ctl->evctl, sl->sfds_udp.s, server_to_udp_cb, &sl->sfds_udp);//add the event fd 
+-	if (NULL == ctl->ss.evfd)
++    ctl->s2udp.evfd = EVIO_EventFd_Add(ctl->evctl, sl->sfds_udp.s, server_to_udp_cb, &sl->sfds_udp);//add the event fd 
++	if (NULL == ctl->s2udp.evfd)
+ 		goto err4;
+-	
+-    ctl->evctl->watch_read(ctl->evctl, ctl->ss.evfd);
+-	#endif
++	EVIO_Event_Watch_Read(ctl->evctl, sl->sfds_udp.evfd);
+   err5:
+-	//ctl->evctl->del(ctl->evctl, ctl->ss.evfd);
++	EVIO_EventFd_Del(ctl->evctl, ctl->s2udp.evfd);
+ err4:
+-	evctl_free(ctl->evctl);
++	EVIO_EventCtl_Free(ctl->evctl);
+ err3:
+-	//close(ctl->s2udp.s);
++	close(ctl->s2udp.s);
+ err2:
+-	//nn_close(ctl->s2udp.n);
++	nn_close(ctl->s2udp.n);
+ err1:
+ 	return -1;
+ }
+@@ -130,11 +130,10 @@ void *udp_service(void *arg)
+ {
+      pthread_t thread_ubroadt;
+      struct server *s =arg;
+-     ev_ctl_t * ev_ctrl = evctl_create();
++     T_EVENT_CTL * ev_ctrl = EVIO_EventCtl_Create();
+      if(ev_ctrl == NULL)
+       goto err;
+-    //assert(0 == pthread_create(&thread_ubroadt, NULL,udp_broadcast_service,s));
+-	pthread_create(&thread_ubroadt, NULL,udp_broadcast_service,s);
++    assert(0 == pthread_create(&thread_ubroadt, NULL,udp_broadcast_service,s));
+ 
+     pthread_mutex_lock(&s->start_lock);
+ 	++s->start_num;
+@@ -143,11 +142,11 @@ void *udp_service(void *arg)
+     
+      while(1)
+      {
+-        ev_loop_start(ev_ctrl);
++        EVIO_EventCtlLoop_Start(ev_ctrl);
+      }
+ 
+ err2:
+-    evctl_free(ev_ctrl);
++    EVIO_EventCtl_Free(ev_ctrl);
+ err:
+     abort();
+ }
+\ No newline at end of file

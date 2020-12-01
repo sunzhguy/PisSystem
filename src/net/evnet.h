@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-17 09:53:04
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-07-22 10:36:50
+ * @LastEditTime: 2020-12-01 14:57:19
  */ 
 #ifndef _EVNET_H_
 #define _EVNET_H_
@@ -34,7 +34,7 @@ typedef enum ev_tcp_event {
     EV_TCP_CLOSE
 }ev_tcp_event_t;
 
-typedef void (*ev_tcp_cb_t)(ev_ctl_t *, struct ev_tcp *, ev_tcp_event_t , void *);
+typedef void (*ev_tcp_cb_t)(T_EVENT_CTL *, struct ev_tcp *, ev_tcp_event_t , void *);
 //typedef void (*ev_udp_cb_t)(ev_ctl_t *, struct ev_udp *, ev_udp_event_t , void *);
 
 typedef enum ev_tcp_type {
@@ -58,19 +58,19 @@ typedef struct ev_tcp {
 	ev_tcp_type_t type;
 	int32_t fd;
 	ev_buffer_t *buffer;
-	ev_fd_t *evfd;
+	T_EVENT_FD *evfd;
 	ev_tcp_cb_t cb;
 	void *arg;
 }ev_tcp_t;
 
 
 
-typedef void (*ev_udp_cb_t)(ev_ctl_t *, struct ev_udp *, void *);
+typedef void (*ev_udp_cb_t)(T_EVENT_CTL *, struct ev_udp *, void *);
 
 typedef struct ev_udp{
 	int32_t fd;
 	ev_buffer_t *buffer;
-	ev_fd_t *evfd;
+	T_EVENT_FD *evfd;
 	ev_udp_cb_t cb;//接收数据回调控制
 	void *arg;
 }ev_udp_t;
@@ -83,7 +83,7 @@ void ev_tcp_set(ev_ctl_t *evctl, ev_tcp_t *evtcp, ev_tcp_cb_t cb, void *arg);
 int ev_tcp_msg(ev_ctl_t *evctl, ev_tcp_t *evtcp, const char *data, int32_t size);
 #endif
 
-ev_udp_t* udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg);
+ev_udp_t* udp_start(T_EVENT_CTL *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg);
 
 #endif
 

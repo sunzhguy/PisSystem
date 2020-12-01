@@ -40,8 +40,10 @@ CFLAGS += -DHAVE_PIPE2=1
 CFLAGS += -DNN_HAVE_PIPE2=1
 CFLAGS += -DNN_HAVE_CLOCK_MONOTONIC=1
 
+CFLAGS += -DNN_USE_POLL
 CFLAGS += -DNN_HAVE_POLL=1
-CFLAGS += -DNN_USE_EPOLL=1
+
+#CFLAGS += -DNN_USE_EPOLL=1
 CFLAGS += -DNN_HAVE_ACCEPT4=1
 CFLAGS += -DNN_HAVE_SOCKETPAIR=1
 CFLAGS += -DNN_HAVE_SEMAPHORE=1
@@ -147,8 +149,7 @@ SOURCE  += src/nanomsg/protocols/survey/xsurveyor.c
 
 SOURCE  += src/nanomsg/transports/utils/backoff.c
 SOURCE  += src/nanomsg/transports/utils/dns.c
-SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo.inc
-SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo_a.inc
+#SOURCE  += src/nanomsg/transports/utils/dns_getaddrinfo.inc
 SOURCE  += src/nanomsg/transports/utils/iface.c
 SOURCE  += src/nanomsg/transports/utils/literal.c
 SOURCE  += src/nanomsg/transports/utils/port.c
@@ -186,21 +187,20 @@ SOURCE  += src/nanomsg/transports/ws/ws_handshake.c
 SOURCE  += src/nanomsg/transports/ws/sha1.c
 
 		################unix##############
-SOURCE  += src/nanomsg/aio/usock_posix.inc
-SOURCE  += src/nanomsg/aio/worker_posix.inc
-SOURCE  += src/nanomsg/utils/thread_posix.inc
+#SOURCE  += src/nanomsg/aio/usock_posix.inc
+#SOURCE  += src/nanomsg/aio/worker_posix.inc
+#SOURCE  += src/nanomsg/utils/thread_posix.inc
 
 		###############NN_HAVE_POLL)
     	#add_definitions (-DNN_USE_POLL)
-SOURCE  += src/nanomsg/aio/poller_poll.inc
-
+#SOURCE  += src/nanomsg/aio/poller_poll.inc
+SOURCE   += src/nanomsg/aio/poller.c
 		##############NN_HAVE_EVENTFD
-SOURCE  += src/nanomsg/utils/efd_eventfd.h
-SOURCE  += src/nanomsg/utils/efd_eventfd.inc
+#SOURCE  += src/nanomsg/utils/efd_eventfd.h
+#SOURCE  += src/nanomsg/utils/efd_eventfd.c
 
-#SOURCE  += src/timer/evtimer.c
 
-#nanomsg
+#evio
 SOURCE  += src/net/evnet.c
 
 #nanomsg

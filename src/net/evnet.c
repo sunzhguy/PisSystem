@@ -403,7 +403,7 @@ static ev_udp_t *ev_udp_create(int sock, void *arg)
 }
 
 /*TCP 读取数据到缓冲区*/
-static int ev_udp_read(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evudp)
+static int ev_udp_read(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evudp)
 {
 	int cliend_addr_len = sizeof(struct sockaddr_in);
 	struct sockaddr_in *client_addr;
@@ -418,7 +418,7 @@ static int ev_udp_read(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evudp)
 }
 
 /*发送缓冲区数据*/
-static int ev_udp_write(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evtcp)
+static int ev_udp_write(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evtcp)
 {
    
 	
@@ -426,7 +426,7 @@ static int ev_udp_write(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_udp_t *evtcp)
 }
 
 /*网络事件控制  读、写、错误*/
-static void ev_udpnet_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
+static void ev_udpnet_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
 {
     ev_udp_t *evudp = arg;
     int error = 0;
@@ -449,7 +449,7 @@ static void ev_udpnet_cb(ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type,
 }
 
 /*启动UDP server*/
-ev_udp_t *udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg)
+ev_udp_t *udp_start(T_EVENT_CTL *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg)
 {
 	 struct sockaddr_in udpaddr;
 	 int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -469,8 +469,8 @@ ev_udp_t *udp_start(ev_ctl_t *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb
 	 	goto err2;
 	  ev_udp_t *evudp = ev_udp_create(sockfd, arg);
 	  evudp->cb = cb;
-	  evudp->evfd =ev_fd_add(evctl,sockfd,ev_udpnet_cb,evudp);
-	  ev_watch_read(evctl, evudp->evfd);
+	  evudp->evfd =EVIO_EventFd_Add(evctl,sockfd,ev_udpnet_cb,evudp);
+	  EVIO_Event_Watch_Read(evctl, evudp->evfd);
 	 return evudp;
 err2:
     printf("udp  bind  error.....\r\n");

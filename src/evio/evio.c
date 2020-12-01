@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:51
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-11-30 10:36:29
+ * @LastEditTime: 2020-12-01 16:19:09
  */ 
 #include <stdio.h>
 #include <unistd.h>
@@ -13,36 +13,35 @@
 #include <time.h>
 #include <sys/time.h>
 #include "evio.h"
- 
-
-uint64_t get_cur_time_ms(void)
-{
-    
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-
-    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
 
 #define TIMEMOUT_TM  1000
 
-
-static int _ev_calc_timeout(ev_ctl_t *evctl )
+uint64_t EVIO_Get_CurentTime_ms(void)
 {
-    ev_timer_ctl_t *ctl = evctl->timer_ctl;//事件轮询定时器控制
-    if (!ctl->size(ctl))
+    struct timespec tts;
+    clock_gettime(CLOCK_MONOTONIC, &tts);
+    return tts.tv_sec * 1000 + tts.tv_nsec / 1000000;
+}
+
+
+
+
+static int _EVIO_Calc_Timeout(T_EVENT_CTL *_ptEventCtl)
+{
+    T_EV_TIMER_CTRL *ptEvTimerCtl = _ptEventCtl->ptEventTimerCtrl;//事件轮询定时器控制
+    if (!ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl))
         return TIMEMOUT_TM;
 
-    uint64_t now =get_cur_time_ms();
+    uint64_t now =EVIO_Get_CurentTime_ms();
     //printf("now===%d\r\n",now);
-    ev_timer_t *timer = ctl->peek(ctl);/*最小堆root 节点查看*/
+    T_EV_TIMER *ptEvenTimer = ptEvTimerCtl->pfEvTimerCtlPeek(ptEvTimerCtl);/*最小堆root 节点查看*/
     //printf("peek:%p\r\n",timer);
     //printf("expire===%d\r\n",timer->expire);
 	/* 已经有任务超时 */
-    if (timer->expire <= now)
+    if (ptEvenTimer->u64Expire <= now)
         return 0;
 
-    uint64_t period = timer->expire - now;
+    uint64_t period = ptEvenTimer->u64Expire - now;
     if (period >= TIMEMOUT_TM)
         return TIMEMOUT_TM;
 
@@ -50,20 +49,20 @@ static int _ev_calc_timeout(ev_ctl_t *evctl )
     return period;
 }
 
-static void _ev_timer_run(ev_ctl_t *evctl)
+static void _EVIO_EvTimer_Run(T_EVENT_CTL *_ptEventCtl)
 {
 
-    ev_timer_ctl_t *ctl = evctl->timer_ctl;//事件轮询定时器控制
-    uint64_t now = get_cur_time_ms();
-    uint64_t max_times = ctl->size(ctl);
+    T_EV_TIMER_CTRL *ptEvTimerCtl = _ptEventCtl->ptEventTimerCtrl;//事件轮询定时器控制
+    uint64_t now = EVIO_Get_CurentTime_ms();
+    uint64_t max_times = ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl);
     uint64_t cur_times = 0;
 
-    while (ctl->size(ctl) && cur_times++ < max_times) {
-        ev_timer_t *timer = ctl->peek(ctl);
-        if (timer->expire <= now) {
-            ctl->pop(ctl, NULL);
-			if(timer->cb){
-                timer->cb(evctl, timer, timer->arg);
+    while (ptEvTimerCtl->pfEvTimerCtlSize(ptEvTimerCtl) && cur_times++ < max_times) {
+        T_EV_TIMER *ptEvenTimer = ptEvTimerCtl->pfEvTimerCtlPeek(ptEvTimerCtl);
+        if (ptEvenTimer->u64Expire <= now) {
+            ptEvTimerCtl->pfEvTimerCtlPop(ptEvTimerCtl, NULL);
+			if(ptEvenTimer->pfEvTimerCb){
+                ptEvenTimer->pfEvTimerCb(_ptEventCtl, ptEvenTimer, ptEvenTimer->pvArg);
             }
         } else {
             break;
@@ -72,164 +71,182 @@ static void _ev_timer_run(ev_ctl_t *evctl)
 }
 
 /*事件轮询*/
-void ev_loop_start(ev_ctl_t *evctl)
+void EVIO_EventCtlLoop_Start(T_EVENT_CTL *_ptEventCtl)
 {
-    _ev_timer_run(evctl);
-    int timeout = _ev_calc_timeout(evctl);
-    int ev_cnt = epoll_wait(evctl->epfd, evctl->evlist, 32, timeout);
+    _EVIO_EvTimer_Run(_ptEventCtl);
+    int timeout = _EVIO_Calc_Timeout(_ptEventCtl);
+    int ev_cnt = epoll_wait(_ptEventCtl->iEpolFd, _ptEventCtl->atEpollEventList, 32, timeout);
 	if (-1 == ev_cnt) {
 		return;
 	}
-    evctl->looping = 1;
+    _ptEventCtl->bLooping = 1;
 
 	int i;
     for (i = 0; i < ev_cnt; ++i) {
-        ev_fd_t *evfd = evctl->evlist[i].data.ptr;
-        uint32_t events = evctl->evlist[i].events;
+        T_EVENT_FD *ptEventFd = _ptEventCtl->atEpollEventList[i].data.ptr;
+        uint32_t events = _ptEventCtl->atEpollEventList[i].events;
 
-        if (evfd->is_del)
+        if (ptEventFd->bIsDel)
             continue;
-        if ((events & EPOLLIN) && (evfd->ev & EPOLLIN))
-            evfd->cb(evctl, evfd, evfd->fd, EV_READ, evfd->arg);
-        if (!evfd->is_del && (events & EPOLLOUT) && (evfd->ev & EPOLLOUT))
-            evfd->cb(evctl, evfd, evfd->fd, EV_WRITE, evfd->arg);
-        if (!evfd->is_del && events & (EPOLLHUP | EPOLLERR))
-            evfd->cb(evctl, evfd, evfd->fd, EV_ERROR, evfd->arg);
+        if ((events & EPOLLIN) && (ptEventFd->iEvents & EPOLLIN))
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_READ, ptEventFd->pvArg);
+        if (!ptEventFd->bIsDel && (events & EPOLLOUT) && (ptEventFd->iEvents & EPOLLOUT))
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_WRITE, ptEventFd->pvArg);
+        if (!ptEventFd->bIsDel && events & (EPOLLHUP | EPOLLERR))
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_ERROR, ptEventFd->pvArg);
     }
 
-    evctl->looping = 0;
+    _ptEventCtl->bLooping = 0;
 
-	for (i = 0; i < evctl->deferred_cnt; ++i)
-        free(evctl->deferred_to_close[i]);
+	for (i = 0; i < _ptEventCtl->u32DeferredCnt; ++i)
+        free(_ptEventCtl->pttEventFDeferred_to_close[i]);
 
-	evctl->deferred_cnt = 0;
+	_ptEventCtl->u32DeferredCnt = 0;
 }
 
+#if 0
 /*设置事件回调参数  以及传值*/
-static void ev_fd_set(ev_ctl_t *evctl, ev_fd_t *evfd, ev_cb_t cb, void *arg)
+static void _EVIO_EventFd_Set(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, PF_EVENT_CALLBACK _pfCB, void *_pvArg)
 {
-    evfd->cb = cb;
-    evfd->arg = arg;
+    _ptEventFd->pfEventCallBack = _pfCB;
+    _ptEventFd->pvArg = _pvArg;
 }
+#endif
+
 /*添加fd 进evfd 并加入epool 事件 中*/
- ev_fd_t *ev_fd_add(ev_ctl_t *evctl, int32_t fd, ev_cb_t cb, void *arg)
+ T_EVENT_FD *EVIO_EventFd_Add(T_EVENT_CTL *_ptEventCtl, int32_t _ifd, PF_EVENT_CALLBACK _pfCB, void *_pvArg)
 {
-    ev_fd_t *evfd = calloc(1, sizeof(ev_fd_t));
-	if (NULL == evfd)
+    T_EVENT_FD *ptEventFd = calloc(1, sizeof(T_EVENT_FD));
+	if (NULL == ptEventFd)
 		return NULL;
 
-	evfd->is_del = 0;
-    evfd->fd = fd;
-    evfd->cb = cb;
-    evfd->arg = arg;
-    struct epoll_event add_event;
-    add_event.events = 0;
-    add_event.data.ptr = evfd;
-    if (-1 == epoll_ctl(evctl->epfd, EPOLL_CTL_ADD, fd, &add_event)) {
-        free(evfd);
+	ptEventFd->bIsDel = 0;
+    ptEventFd->iFd = _ifd;
+    ptEventFd->pfEventCallBack = _pfCB;
+    ptEventFd->pvArg = _pvArg;
+    struct epoll_event tEpollEvent;
+    tEpollEvent.events = 0;
+    tEpollEvent.data.ptr = ptEventFd;
+    if (-1 == epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_ADD, _ifd, &tEpollEvent)) {
+        free(ptEventFd);
         return NULL;
     }
 
-    return evfd;
+    return ptEventFd;
 }
 
 /*移除ev_fd 进一步移除 ev_fd_t*/
- void ev_fd_del(ev_ctl_t *evctl, ev_fd_t *evfd)
+ void EVIO_EventFd_Del(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    epoll_ctl(evctl->epfd, EPOLL_CTL_DEL, evfd->fd, NULL);
-    if (evctl->looping) {
-        evfd->is_del = 1;
-        if (evctl->deferred_cnt == evctl->deferred_cap)
+    epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_DEL, _ptEventFd->iFd, NULL);
+    if (_ptEventCtl->bLooping) {
+        _ptEventFd->bIsDel = 1;
+        if (_ptEventCtl->u32DeferredCnt == _ptEventCtl->u32DeferredCap)
         {
-        evctl->deferred_to_close = realloc(evctl->deferred_to_close,++evctl->deferred_cap * sizeof(ev_fd_t));
+         _ptEventCtl->pttEventFDeferred_to_close = realloc(_ptEventCtl->pttEventFDeferred_to_close,++_ptEventCtl->u32DeferredCap * sizeof(T_EVENT_FD));
         }
-        evctl->deferred_to_close[evctl->deferred_cnt++] = evfd;
+        _ptEventCtl->pttEventFDeferred_to_close[_ptEventCtl->u32DeferredCnt++] = _ptEventFd;
         return;
     }
-    free(evfd);
-	evfd = NULL;
+    free(_ptEventFd);
+	_ptEventFd = NULL;
 }
 
-static void _ev_watch_events(ev_ctl_t *evctl, ev_fd_t *evfd)
+static void _EVIO_Watch_Events(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    struct epoll_event mod_event;
-    mod_event.events = evfd->ev;
-    mod_event.data.ptr = evfd;
-    epoll_ctl(evctl->epfd, EPOLL_CTL_MOD, evfd->fd, &mod_event);
+    struct epoll_event tEpollEventMod;
+    tEpollEventMod.events = _ptEventFd->iEvents;
+    tEpollEventMod.data.ptr = _ptEventFd;
+    epoll_ctl(_ptEventCtl->iEpolFd, EPOLL_CTL_MOD, _ptEventFd->iFd, &tEpollEventMod);
 }
 
-void ev_watch_write(ev_ctl_t *evctl, ev_fd_t *evfd)
+void EVIO_Event_Watch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    evfd->ev |= EPOLLOUT;
-    _ev_watch_events(evctl, evfd);
+    _ptEventFd->iEvents |= EPOLLOUT;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
 }
 
-void ev_unwatch_write(ev_ctl_t *evctl, ev_fd_t *evfd)
+void EVIO_Event_UnWatch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    evfd->ev &= ~EPOLLOUT;
-    _ev_watch_events(evctl, evfd);
+    _ptEventFd->iEvents &= ~EPOLLOUT;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
 }
 
-void ev_watch_read(ev_ctl_t *evctl, ev_fd_t *evfd)
+void EVIO_Event_Watch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    evfd->ev |= EPOLLIN;
-    _ev_watch_events(evctl, evfd);
+    _ptEventFd->iEvents |= EPOLLIN;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
 }
 
-void ev_unwatch_read(ev_ctl_t *evctl, ev_fd_t *evfd)
+void EVIO_Event_UnWatch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
 {
-    evfd->ev &= ~EPOLLIN;
-    _ev_watch_events(evctl, evfd);
+    _ptEventFd->iEvents &= ~EPOLLIN;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
 }
 
 /*添加一个定时器 事件控制*/
-void ev_init_timer(ev_timer_t *timer, uint64_t timeout_ms, ev_timer_cb_t cb, void *arg)
+void EVIO_EventTimer_Init(T_EV_TIMER *timer, uint64_t _u64timeout_ms, PF_EVTIMER_CB _pfEvTimerCB, void *_pvArg)
 {
-	
-    uint64_t expire = get_cur_time_ms() + timeout_ms;
-    timer->expire = expire;
-    timer->index = -1;
-    //printf("expire----%d\r\n",expire);
-    timer->cb = cb;
-    timer->arg = arg;
+    uint64_t expire = EVIO_Get_CurentTime_ms() + _u64timeout_ms;
+    timer->u64Expire = expire;
+    timer->u64Index = -1;
+    timer->pfEvTimerCb = _pfEvTimerCB;
+    timer->pvArg = _pvArg;
+    printf("init.....over...Timer:%p\r\n",timer);
 	
 }
 
-void ev_start_timer(ev_ctl_t *evctl,ev_timer_t *timer)
+void EVIO_EventTimer_Start(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer)
 {
-   ev_timer_ctl_t *ctl = evctl->timer_ctl;
-    ctl->push(ctl, timer);
+   
+        T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
+       printf("Enter...EVCTL%p.--TIMEREVCTL>%p---->timer:%p\n",_ptEventCtl,ptEventTimerCtl,_ptEventTimer);
+        ptEventTimerCtl->pfEvTimerCtlPush(ptEventTimerCtl, _ptEventTimer);
+    
 }
 
 /*停止事件轮询定时器，即删除定时器*/
-void ev_stop_timer(ev_ctl_t *evctl, ev_timer_t *timer)
+void EVIO_EventTimer_Stop(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer)
 {
-	ev_timer_ctl_t *ctl = evctl->timer_ctl;
-    ctl->remove(ctl, timer);
+	T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
+    ptEventTimerCtl->pfEvTimerCtlRemove(ptEventTimerCtl, _ptEventTimer);
 }
-void evctl_free(ev_ctl_t *evctl)
+void EVIO_EventCtl_Free(T_EVENT_CTL *_ptEventCtl)
 {
-	close(evctl->epfd);
-	evctl->timer_ctl->dtor(evctl->timer_ctl);
-	free(evctl->timer_ctl);
-	if (evctl->deferred_to_close)
-		free(evctl->deferred_to_close);
-	free(evctl);
+	close(_ptEventCtl->iEpolFd);
+	_ptEventCtl->ptEventTimerCtrl->pfEvTimerCtlDtor(_ptEventCtl->ptEventTimerCtrl);
+	free(_ptEventCtl->ptEventTimerCtrl);
+	if (_ptEventCtl->pttEventFDeferred_to_close)
+		free(_ptEventCtl->pttEventFDeferred_to_close);
+	free(_ptEventCtl);
 }
 
-ev_ctl_t *evctl_create(void)
+T_EVENT_CTL *EVIO_EventCtl_Create(void)
 {
-	ev_ctl_t *evctl = calloc(1, sizeof(ev_ctl_t));
-	if (NULL == evctl)
-		goto err1;
+	T_EVENT_CTL *ptEventCtl = calloc(1, sizeof(T_EVENT_CTL));
+	if (NULL == ptEventCtl)
+        {
+            printf("%s-%d\n",__func__,__LINE__);
+            return NULL;   
+        }
 
-	evctl->epfd = epoll_create1(0);
-	if (-1 == evctl->epfd)
-		goto err2;
+	ptEventCtl->iEpolFd = epoll_create1(0);
+	if (-1 == ptEventCtl->iEpolFd)
+        {
+            printf("%s-%d\n",__func__,__LINE__);
+            free(ptEventCtl);
+            return NULL;
+        }
 
-	evctl->timer_ctl = ev_timer_ctl_create();
-	if (NULL == evctl->timer_ctl)
-		goto err3;
+	ptEventCtl->ptEventTimerCtrl = EV_TIMER_Ctl_Create();
+    printf("++++Creator+++++++ptEventCtl->ptEventTimerCtrl:%p\n",ptEventCtl->ptEventTimerCtrl);
+	if (NULL == ptEventCtl->ptEventTimerCtrl)
+	    {
+            printf("%s-%d\n",__func__,__LINE__);
+            close(ptEventCtl->iEpolFd);
+            free(ptEventCtl);
+            return NULL;
+        }
 
     #if 0
 	evctl->start = ev_loop_start;
@@ -244,12 +261,5 @@ ev_ctl_t *evctl_create(void)
 	evctl->timer_stop = ev_stop_timer;
     #endif
 
-	return evctl;
-
-err3:
-	close(evctl->epfd);
-err2:
-	free(evctl);
-err1:
-	return NULL;
+	return ptEventCtl;
 }

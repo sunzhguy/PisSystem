@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 09:58:54
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-07-16 17:56:48
+ * @LastEditTime: 2020-12-01 14:31:47
  */ 
 #ifndef MINI_HEAP_H
 #define MINI_HEAP_H
@@ -13,27 +13,27 @@
 #include <unistd.h>
 
 //#define heap_size(heap) 	((heap)->size)
-#define heap_parent(npos)	((int32_t)(((npos) - 1) / 2))
-#define heap_left(npos)		(((npos) * 2) + 1)
-#define heap_right(npos)	(((npos) * 2) + 2)
+#define HEAP_PARENT(npos)	((int32_t)(((npos) - 1) / 2))
+#define HEAP_LEFT(npos)		(((npos) * 2) + 1)
+#define HEAP_RIGHT(npos)	(((npos) * 2) + 2)
 
-typedef int32_t (*heap_compare_t)(const void *, const void *);
-typedef void (*heap_destroy_t)(void *);
-typedef void (*heap_index_t)(void *, const uint32_t);
+typedef int32_t (*PF_HEAP_COMPARE)(const void *, const void *);
+typedef void (*PF_HEAP_DESTROY)(void *);
+typedef void (*PF_HEAP_INDEX)(void *, const uint32_t);
 
 typedef struct {
-	int32_t	size;
-	heap_compare_t compare;
-	heap_destroy_t destroy;
-	heap_index_t index;
+	int32_t	iSize;
+	PF_HEAP_COMPARE pfCompare;
+	PF_HEAP_DESTROY pfDestory;
+	PF_HEAP_INDEX   pfIndex;
 	void **tree;
-}Heap;
+}T_HEAP;
 
-void heap_init(void *, heap_compare_t, heap_destroy_t,heap_index_t);
-void heap_destroy(void *);
-int32_t heap_insert(void *, const void *);
-int32_t heap_extract(void *, void **);
-int32_t heap_size(void *);
+void MiniHeap_Init(void *, PF_HEAP_COMPARE, PF_HEAP_DESTROY,PF_HEAP_INDEX);
+void MiniHeap_Destroy(void *);
+int32_t MiniHeap_Insert(void *, const void *);
+int32_t MiniHeap_Extract(void *, void **);
+int32_t MiniHeap_Size(void *);
 
 
 
