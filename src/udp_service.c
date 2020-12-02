@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-01 15:24:17
+ * @LastEditTime: 2020-12-02 09:40:52
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -33,12 +33,12 @@ struct udp_net_ctl {
 }udp_net_ctl;
 
 
- void ev_udp_recv_cb(T_EVENT_CTL *evctl, ev_udp_t * evudp , void *arg)
+ void ev_udp_recv_cb(T_EVENT_CTL *evctl, T_EVENT_UDP * evudp , void *arg)
  {
      int beg =0;
-     ev_buffer_t *b = evudp->buffer;
-     printf("UDP  recve....%s\r\n",b->r);
-     b->roff = 0x00;
+     T_EV_BUFFER *b = evudp->ptEvBuffer;
+     printf("UDP  recve....%s\r\n",b->acReadBuffer);
+     b->iReadOffset = 0x00;
  }
 
 void *udp_broadcast_service(void *arg)
@@ -46,7 +46,7 @@ void *udp_broadcast_service(void *arg)
      T_EVENT_CTL * ev_ctrl = EVIO_EventCtl_Create();
     if(ev_ctrl == NULL)
       goto err;
-     ev_udp_t *udpcon = udp_start(ev_ctrl,"168.168.102.255",5555,ev_udp_recv_cb,NULL);
+     T_EVENT_UDP *udpcon = EV_NET_EventUDP_CreateAndStart(ev_ctrl,"168.168.102.255",5555,ev_udp_recv_cb,NULL);
 	 if(udpcon == NULL)
      {
           printf("UDP init error\r\n");
@@ -57,7 +57,7 @@ void *udp_broadcast_service(void *arg)
         EVIO_EventCtlLoop_Start(ev_ctrl);
      }
 err3:
-    EVIO_EventFd_Del(ev_ctrl,udpcon->evfd);
+    EVIO_EventFd_Del(ev_ctrl,udpcon->ptEventFd);
 err2:
     EVIO_EventCtl_Free(ev_ctrl);
 err:
@@ -77,13 +77,13 @@ static void server_to_udp_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_
 	//struct server *s = ctl->arg;
 
     switch (type) {
-	    case EV_READ:
+	    case E_EV_READ:
 	        fds->cb(evctl, fds);
 	        break;
-		case EV_WRITE:
+		case E_EV_WRITE:
 			printf( "Unexpected write event");
 			break;
-		case EV_ERROR:
+		case E_EV_ERROR:
 			printf( "Unexpected error event");
 			break;
 	    default:

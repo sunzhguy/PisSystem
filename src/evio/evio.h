@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:41
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-01 15:20:53
+ * @LastEditTime: 2020-12-02 09:09:30
  */ 
 
 #ifndef _EVIO_H_
@@ -19,9 +19,9 @@ typedef struct _T_EVENT_CTL  T_EVENT_CTL;
 typedef enum   _E_EV_TYPE    E_EV_TYPE;
 typedef void (*PF_EVENT_CALLBACK)(T_EVENT_CTL *_ptEventCtrl, T_EVENT_FD *_ptEventFd, int32_t _fd, E_EV_TYPE _e_type, void *_arg);
 enum _E_EV_TYPE {
-	EV_READ,
-	EV_WRITE,
-	EV_ERROR
+	E_EV_READ,
+	E_EV_WRITE,
+	E_EV_ERROR
 };
 
 struct _T_EVENT_FD {

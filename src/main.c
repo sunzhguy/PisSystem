@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-01 16:20:41
+ * @LastEditTime: 2020-12-02 09:28:49
  */ 
 
 
@@ -94,13 +94,13 @@ static void main_loop_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE
 	struct server *s = sfd->arg;
 
     switch (type) {
-	    case EV_READ:
+	    case E_EV_READ:
 	        sfd->cb(evctl, sfd);
 	        break;
-		case EV_WRITE:
+		case E_EV_WRITE:
 			printf("Main loop write event, unexpected\n");
 			break;
-		case EV_ERROR:
+		case E_EV_ERROR:
 			printf("Main loop error event, unexpected\n");
 			break;
 	    default:

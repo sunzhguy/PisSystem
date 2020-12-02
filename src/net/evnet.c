@@ -13,34 +13,134 @@
 
 //设置网络通信读写缓冲区个数 LISTEN_CLIENT CNT +SERVER +UDP CNT
 
-ev_buffer_t ev_bufs[MAX_BUF_CNT];//只用数组作为网络通信（TCP(server/clinet) UDP) 申请队列，后续根据业务情况使用链表分配释放
+T_EV_BUFFER atEvBuffers[MAX_BUF_CNT];//只用数组作为网络通信（TCP(server/clinet) UDP) 申请队列，后续根据业务情况使用链表分配释放
 
 
 /*绑定一个可使用得buffer*/
-static ev_buffer_t *ev_net_bind_free_buffer(void)  //网络bind 空闲BUFFER
+static T_EV_BUFFER *_EV_NET_BindAFreeBuffer(void)  //网络bind 空闲BUFFER
 {
 	int32_t i;
-	for (i = 0; i < 17; ++i) {
-		if (0 == ev_bufs[i].using) {
-			ev_bufs[i].using = 1;
-			return &ev_bufs[i];
+	for (i = 0; i < MAX_BUF_CNT; ++i) {
+		if (0 == atEvBuffers[i].bUsing) {
+			atEvBuffers[i].bUsing = 1;
+			return &atEvBuffers[i];
 		}
 	}
-
 	return NULL;
 }
 
 /*解绑一个可使用得buffer*/
-static void ev_net_unbind_using_buffer(ev_buffer_t *b)
+static void _EV_NET_UnBindAUsingBuffer(T_EV_BUFFER *_ptEvBuffer)
 {
-	b->using = 0;
-	b->rlen = 0;
-	b->roff = 0;
-	b->woff = 0;
-	b->wlen = 0;
-	memset(b->r, 0, EV_BUFFER_SIZE);
-	memset(b->w, 0, EV_BUFFER_SIZE);
+	_ptEvBuffer->bUsing = 0;
+	_ptEvBuffer->iReadLen = 0;
+	_ptEvBuffer->iReadOffset = 0;
+	_ptEvBuffer->u32Writelen = 0;
+	_ptEvBuffer->u32WriteOffset = 0;
+	memset(_ptEvBuffer->acReadBuffer, 0, EV_BUFFER_SIZE);
+	memset(_ptEvBuffer->acWriteBuffer, 0, EV_BUFFER_SIZE);
 }
+
+
+
+/*****************************UDP 连接*/
+static T_EVENT_UDP *_EV_NET_EventUDP_Create(int _iSocket, void *_pvArg)
+{
+    T_EVENT_UDP *ptEventUDP = calloc(1, sizeof(T_EVENT_UDP));
+	if (NULL == ptEventUDP)
+		return NULL;
+	
+    ptEventUDP->iSocketFd = _iSocket;
+    //evudp->type = type;
+    //evudp->cb = cb;
+    ptEventUDP->pvArg = _pvArg;
+    ptEventUDP->ptEvBuffer = _EV_NET_BindAFreeBuffer();
+	
+    return ptEventUDP;
+}
+
+/*UDP 读取数据到缓冲区*/
+static int _EV_NET_EventUDPReadToBuffer(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iSocketFd, T_EVENT_UDP *_ptEventUdp)
+{
+	int iClinetSocket_AddrLen = sizeof(struct sockaddr_in);
+	struct sockaddr_in *ptSocketClientAddr;
+	T_EV_BUFFER *ptEvBuffer =_ptEventUdp->ptEvBuffer;
+	int recvlen = recvfrom(_iSocketFd,  ptEvBuffer->acReadBuffer + ptEvBuffer->iReadOffset, \
+					EV_HALFBUF_SIZE - ptEvBuffer->iReadOffset, 0, (struct sockaddr*)ptSocketClientAddr, &iClinetSocket_AddrLen);
+	if(-1 == recvlen)
+		return 1;
+	ptEvBuffer->iReadLen = recvlen;
+    ptEvBuffer->iReadOffset += recvlen;
+	_ptEventUdp->pfEventCallBack(_ptEventCtl, _ptEventUdp,_ptEventUdp->pvArg);
+		
+    return 0;
+}
+
+/*发送缓冲区数据*/
+static int _EV_NET_EventUDPWriteToBuffer(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iSocketFd, T_EVENT_UDP *_ptEventUdp)
+{
+    return 0;
+}
+
+/*网络事件控制  读、写、错误*/
+static void _EV_NET_EventUDPNetCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iSocketFd, E_EV_TYPE _eType, void *_pvArg)
+{
+    T_EVENT_UDP *ptEventUdp = _pvArg;
+    int error = 0;
+    switch (_eType) {
+	    case E_EV_READ:
+			 //printf("read.....\r\n");
+	        error = _EV_NET_EventUDPReadToBuffer(_ptEventCtl, _ptEventFd, _iSocketFd, ptEventUdp);
+	        break;
+	    case E_EV_WRITE:
+		     printf("write.....\r\n");
+	        error = _EV_NET_EventUDPWriteToBuffer(_ptEventCtl, _ptEventFd, _iSocketFd, ptEventUdp);
+	        break;
+	    case E_EV_ERROR:
+	        error = 1;
+	        break;
+	    default:
+	        return;
+    }
+}
+
+/*启动UDP server*/
+T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_TCP_CALLBACK _pfEventCallBack,void *_pvArg)
+{
+	 int opt_bBroadcast = 1;
+	 struct sockaddr_in tUdpSocketAddr;
+	 int iSockFd = socket(AF_INET, SOCK_DGRAM, 0);
+	 if(-1 == iSockFd)
+	 {
+		 printf("%s:%d udp socket error.....\r\n",__func__,__LINE__);
+		 return NULL;
+	 }
+
+
+	 setsockopt(iSockFd,SOL_SOCKET,SO_BROADCAST,&opt_bBroadcast,sizeof(opt_bBroadcast)); 
+	 bzero(&tUdpSocketAddr, sizeof(tUdpSocketAddr));
+	 tUdpSocketAddr.sin_family = AF_INET;
+	 if(_pcIpaddr == NULL)
+	 tUdpSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	 else
+	 tUdpSocketAddr.sin_addr.s_addr = inet_addr(_pcIpaddr);
+	 
+	 tUdpSocketAddr.sin_port = htons(_Port);
+	 if(-1 == bind(iSockFd, (struct sockaddr*)&tUdpSocketAddr, sizeof(tUdpSocketAddr)))
+	 	{
+			 printf("%s:%dError udp  bind  error.....\r\n",__func__,__LINE__);
+			 close(iSockFd);
+			 return NULL;
+		}
+	  T_EVENT_UDP *ptEventUDP = _EV_NET_EventUDP_Create(iSockFd, _pvArg);
+	  ptEventUDP->pfEventCallBack = _pfEventCallBack;
+	  ptEventUDP->ptEventFd =EVIO_EventFd_Add(_ptEventCtl,iSockFd,_EV_NET_EventUDPNetCallBack,ptEventUDP);
+	  EVIO_Event_Watch_Read(_ptEventCtl, ptEventUDP->ptEventFd);
+	 return ptEventUDP;
+}
+
+
+
 
 
 #if 0
@@ -386,96 +486,3 @@ int ev_tcp_attach(ev_ctl_t *evctl, ev_tcp_t *evtcp)
 }
 #endif
 
-/*****************************UDP 连接*/
-static ev_udp_t *ev_udp_create(int sock, void *arg)
-{
-    ev_udp_t *evudp = calloc(1, sizeof(ev_udp_t));
-	if (NULL == evudp)
-		return NULL;
-	
-    evudp->fd = sock;
-    //evudp->type = type;
-    //evudp->cb = cb;
-    evudp->arg = arg;
-    evudp->buffer = ev_net_bind_free_buffer();
-	
-    return evudp;
-}
-
-/*TCP 读取数据到缓冲区*/
-static int ev_udp_read(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evudp)
-{
-	int cliend_addr_len = sizeof(struct sockaddr_in);
-	struct sockaddr_in *client_addr;
-	int len = recvfrom(fd,  evudp->buffer->r + evudp->buffer->roff, EV_HALFBUF_SIZE - evudp->buffer->roff, 0, (struct sockaddr*)client_addr, &cliend_addr_len);
-	if(-1 == len)
-		return 1;
-	evudp->buffer->rlen = len;
-    evudp->buffer->roff += len;
-	evudp->cb(evctl, evudp,evudp->arg);
-		
-    return 0;
-}
-
-/*发送缓冲区数据*/
-static int ev_udp_write(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, ev_udp_t *evtcp)
-{
-   
-	
-    return 0;
-}
-
-/*网络事件控制  读、写、错误*/
-static void ev_udpnet_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
-{
-    ev_udp_t *evudp = arg;
-    int error = 0;
-	
-    switch (type) {
-	    case EV_READ:
-			 //printf("read.....\r\n");
-	        error = ev_udp_read(evctl, evfd, fd, evudp);
-	        break;
-	    case EV_WRITE:
-		     printf("write.....\r\n");
-	        error = ev_udp_write(evctl, evfd, fd, evudp);
-	        break;
-	    case EV_ERROR:
-	        error = 1;
-	        break;
-	    default:
-	        return;
-    }
-}
-
-/*启动UDP server*/
-ev_udp_t *udp_start(T_EVENT_CTL *evctl, char *ipaddr, uint16_t port, ev_udp_cb_t cb,void *arg)
-{
-	 struct sockaddr_in udpaddr;
-	 int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	 if(-1 == sockfd)
-	 	goto err1;
-	 int on = 1;
-	 setsockopt(sockfd,SOL_SOCKET,SO_BROADCAST,&on,sizeof(on)); 
-	 bzero(&udpaddr, sizeof(udpaddr));
-	 udpaddr.sin_family = AF_INET;
-	 if(ipaddr == NULL)
-	 udpaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	 else
-	 udpaddr.sin_addr.s_addr = inet_addr(ipaddr);
-	 
-	 udpaddr.sin_port = htons(port);
-	 if(-1 == bind(sockfd, (struct sockaddr*)&udpaddr, sizeof(udpaddr)))
-	 	goto err2;
-	  ev_udp_t *evudp = ev_udp_create(sockfd, arg);
-	  evudp->cb = cb;
-	  evudp->evfd =EVIO_EventFd_Add(evctl,sockfd,ev_udpnet_cb,evudp);
-	  EVIO_Event_Watch_Read(evctl, evudp->evfd);
-	 return evudp;
-err2:
-    printf("udp  bind  error.....\r\n");
-	close(sockfd);
-err1:
-	printf("udp  socket error.....\r\n");
-	return NULL;
-}
