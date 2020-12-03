@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-03 14:19:51
+ * @LastEditTime: 2020-12-03 16:54:25
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -55,8 +55,36 @@ typedef struct _T_UDP_NET_EVCTL{
 			memcpy(dat, ptEvNetBuffer->acReadBuffer, dat_len);
 			int ret = nn_send(ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
 			//printf("ret====%d\n",ret);
+			
 		}
 	}
+	#endif
+
+	#if 0
+		ev_buffer_t *b = evtcp->buffer;
+		uint16_t beg = 0;
+		uint16_t end = 0;
+		uint16_t len = 0;
+
+		while (beg < b->roff) {
+			char *end_pos = (char *)memchr(b->r + beg, '\n', b->roff - beg);
+			if (!end_pos)
+				break;
+			end = end_pos - b->r;
+			len = end - beg + 1;
+			int ret = cb(evctl, evtcp, arg, b->r + beg, len);
+			//if (-1 == ret)
+				//return;
+
+			beg = end + 1;
+		}
+
+		uint16_t left = b->roff - beg;
+		if (beg != 0 && left > 0) {
+			memmove(b->r, b->r + beg, left);
+		}
+
+		b->roff = left;
 	#endif
  }
 
