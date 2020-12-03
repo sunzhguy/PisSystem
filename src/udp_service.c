@@ -4,81 +4,109 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 09:40:52
+ * @LastEditTime: 2020-12-03 10:35:57
  */ 
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <pthread.h>
 #include "net/evnet.h"
 #include "udp_service.h"
 #include "evio/evio.h"
 #include "nanomsg/pair.h"
 #include "nanomsg/nn.h"
 #include "main.h"
-#include <assert.h>
 
-struct netfds {
-	int s;			/* sys fd*/
-	int n;			/* nanomsg fd */
-	T_EVENT_FD *evfd;
-	void (*cb)(T_EVENT_CTL *, struct netfds *);
-	void *arg;
+
+typedef struct _T_UDP_NANOMSG_EVFDS  T_UDP_NANOMSG_EVFDS;
+
+struct _T_UDP_NANOMSG_EVFDS {
+	int iSysFd;				/* sys fd*/
+	int iNanoMsgFd;			/* nanomsg fd */
+	T_EVENT_FD *ptEventFd;
+	void (*pfEventCallBack)(T_EVENT_CTL *, T_UDP_NANOMSG_EVFDS *);
+	void *pvArg;
 };
 
-struct udp_net_ctl {
-	char initflag;
-	T_EVENT_CTL *evctl;
-	struct netfds s2udp;
-	struct server *arg;
-}udp_net_ctl;
+typedef struct _T_UDP_NET_EVCTL{
+	char cInitFlag;
+	T_EVENT_CTL *ptEventCtl;
+	T_UDP_NANOMSG_EVFDS tNanoMsgUDPNet;
+	T_MAINSERVER *ptServer;
+}T_UDP_NET_EVCTL;
 
 
- void ev_udp_recv_cb(T_EVENT_CTL *evctl, T_EVENT_UDP * evudp , void *arg)
+ void _UDP_SERVICE_UdpRecive_EventCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP , void *_pvArg)
  {
-     int beg =0;
-     T_EV_BUFFER *b = evudp->ptEvBuffer;
-     printf("UDP  recve....%s\r\n",b->acReadBuffer);
-     b->iReadOffset = 0x00;
+     //int beg =0;
+	 uint32_t dat_len =0;
+     T_EVNET_BUFFER *ptEvNetBuffer = _ptEventUDP->ptEvNetBuffer;
+	 T_UDP_NET_EVCTL *ptUdpNetEventCtl = (T_UDP_NET_EVCTL *) _pvArg;
+     //printf("UDP  recive....%s\r\n",ptEvNetBuffer->acReadBuffer);
+	 dat_len = ptEvNetBuffer->iReadOffset;
+     ptEvNetBuffer->iReadOffset = 0x00;
+	#if 1
+	{
+		char *str = "udpOK";
+		uint8_t *dat = nn_allocmsg(dat_len+1, 0);
+		//printf("dat===%p,%p\n",dat,ptUdpNetEventCtl);
+		if (NULL != dat) {
+			memcpy(dat, ptEvNetBuffer->acReadBuffer, dat_len);
+			int ret = nn_send(ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
+			//printf("ret====%d\n",ret);
+		}
+	}
+	#endif
  }
 
-void *udp_broadcast_service(void *arg)
+void *_UDP_SERVICE_ThreadBroadCastInit(void *_pvArg)
 {
-     T_EVENT_CTL * ev_ctrl = EVIO_EventCtl_Create();
-    if(ev_ctrl == NULL)
-      goto err;
-     T_EVENT_UDP *udpcon = EV_NET_EventUDP_CreateAndStart(ev_ctrl,"168.168.102.255",5555,ev_udp_recv_cb,NULL);
-	 if(udpcon == NULL)
+     T_EVENT_CTL * ptEventCtl = EVIO_EventCtl_Create();
+	 T_MAINSERVER *ptMainServer = ((T_UDP_NET_EVCTL *) _pvArg)->ptServer;
+    if(ptEventCtl == NULL)
+	{
+		 printf("ThreadBroadCastInit ptEventCtl Create error\n");
+		 abort();
+	}
+     T_EVENT_UDP *ptEventUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,"168.168.102.255",5555,_UDP_SERVICE_UdpRecive_EventCallBack,_pvArg);
+	 if(ptEventUdp == NULL)
      {
-          printf("UDP init error\r\n");
-          goto err2;
+          printf("Event UDP create failed\r\n");
+		  EVIO_EventCtl_Free(ptEventCtl);
+          abort();
      }
      while(1)
      {
-        EVIO_EventCtlLoop_Start(ev_ctrl);
+        EVIO_EventCtlLoop_Start(ptEventCtl);
      }
-err3:
-    EVIO_EventFd_Del(ev_ctrl,udpcon->ptEventFd);
-err2:
-    EVIO_EventCtl_Free(ev_ctrl);
-err:
-    abort();
+    EVIO_EventFd_Del(ptEventCtl,ptEventUdp->ptEventFd);
+	EVIO_EventCtl_Free(ptEventCtl);
+	return NULL;  
 }
 
-void handle_data_udp_form_server(T_EVENT_CTL *evctl, struct netfds *s2udp)
+void _UDP_SERVICE_HandleUDPMainNsg(T_EVENT_CTL *_ptEventCtl, T_UDP_NANOMSG_EVFDS *_ptUdpNanomsgEvFds)
 {
-
-
+	printf("++++++++++++++%s:%d\n",__func__,__LINE__);
+	#if 1
+	uint8_t *dat = NULL;
+	uint32_t bytes = nn_recv(_ptUdpNanomsgEvFds->iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
+	if (-1 != bytes) {
+			printf("++++++++++++++++++++++%s\n",dat);
+			nn_freemsg(dat);
+	}
+	#endif
 }
 
-static void server_to_udp_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
+static void _UDP_SERVICE_UDPMainNsg_CallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iFd, E_EV_TYPE _eType, void *_pvArg)
 {
-	struct netfds *fds = arg;
-	struct net_ctl *ctl = fds->arg;
+	 T_UDP_NANOMSG_EVFDS *ptUdpNanoMsgEvFds = _pvArg;
+	 //T_UDP_NET_EVCTL *ptUdpNetEventCtl = ptUdpNanoMsgEvFds->pvArg;
 	//struct server *s = ctl->arg;
 
-    switch (type) {
+    switch (_eType) {
 	    case E_EV_READ:
-	        fds->cb(evctl, fds);
+	        ptUdpNanoMsgEvFds->pfEventCallBack(_ptEventCtl, ptUdpNanoMsgEvFds);
 	        break;
 		case E_EV_WRITE:
 			printf( "Unexpected write event");
@@ -92,61 +120,96 @@ static void server_to_udp_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_
     }
 }
 
-void udp_ctrl_init(struct udp_net_ctl *ctl)
+static int32_t _UDP_SERVICE_UdpEventCtlInit(T_UDP_NET_EVCTL *_ptUdpNetEventCtl)
 {
-	struct servloop * sl =&ctl->arg->sloop;
-    ctl->s2udp.n = nn_socket(AF_SP, NN_PAIR);
-	if (-1 == ctl->s2udp.n)
-		goto err1;
-	if (-1 == nn_connect(ctl->s2udp.n, "inproc://ss2serv"))
-		goto err2;
 	size_t size = sizeof(size_t);
-	if (-1 == nn_getsockopt(ctl->s2udp.n, NN_SOL_SOCKET, NN_RCVFD, (char *)&ctl->s2udp.s, &size))
-		goto err2;
-
-	ctl->evctl = EVIO_EventCtl_Create();
-	if (NULL == ctl->evctl)
-		goto err3;
+	//T_MAINSERVEREVENTLOOP * ptMainServerEventLoop =&_ptUdpNetEventCtl->ptServer->tMainServerEventLoop;
+    _ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd= nn_socket(AF_SP, NN_PAIR);
+	if (-1 == _ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd)
+	{
+		printf("++++nn_socket failed\n");
+		return -1;
+	}
+	if (-1 == nn_connect(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, "inproc://udp<->main"))
+	{
+	  printf("++++nn_connect failed\n");
+      nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
+	  return -1;
+	}
+	printf("--------------------------%d\n",_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
 	
-    ctl->s2udp.cb = handle_data_udp_form_server;
-    ctl->s2udp.arg = ctl;
-    ctl->s2udp.evfd = EVIO_EventFd_Add(ctl->evctl, sl->sfds_udp.s, server_to_udp_cb, &sl->sfds_udp);//add the event fd 
-	if (NULL == ctl->s2udp.evfd)
-		goto err4;
-	EVIO_Event_Watch_Read(ctl->evctl, sl->sfds_udp.evfd);
-  err5:
-	EVIO_EventFd_Del(ctl->evctl, ctl->s2udp.evfd);
-err4:
-	EVIO_EventCtl_Free(ctl->evctl);
-err3:
-	close(ctl->s2udp.s);
-err2:
-	nn_close(ctl->s2udp.n);
-err1:
-	return -1;
+	#if 1
+	if (-1 == nn_getsockopt(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, NN_SOL_SOCKET, NN_RCVFD,\
+							 (char *)&_ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd, &size))
+	{
+		printf("++++nn_getsockopt failed\n");
+		nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
+		return -1;	 
+	}
+
+
+	_ptUdpNetEventCtl->ptEventCtl = EVIO_EventCtl_Create();
+	
+	if (NULL == _ptUdpNetEventCtl->ptEventCtl)
+	{
+		printf("++++EVIO_EventCtl_Create failed\n");
+		close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd);
+		nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
+		return -1;
+	}
+	printf("====================sysfd=======%d\n",_ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd);
+    _ptUdpNetEventCtl->tNanoMsgUDPNet.pfEventCallBack = _UDP_SERVICE_HandleUDPMainNsg;
+    _ptUdpNetEventCtl->tNanoMsgUDPNet.pvArg = _ptUdpNetEventCtl;
+    _ptUdpNetEventCtl->tNanoMsgUDPNet.ptEventFd = EVIO_EventFd_Add(_ptUdpNetEventCtl->ptEventCtl, \
+													 _ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd,\
+													 _UDP_SERVICE_UDPMainNsg_CallBack, 
+													 &_ptUdpNetEventCtl->tNanoMsgUDPNet);//add the event fd 
+	if (NULL == _ptUdpNetEventCtl->tNanoMsgUDPNet.ptEventFd)
+	{
+		EVIO_EventCtl_Free(_ptUdpNetEventCtl->ptEventCtl);
+		close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd);
+		nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
+		return -1;
+	}
+
+	EVIO_Event_Watch_Read(_ptUdpNetEventCtl->ptEventCtl, _ptUdpNetEventCtl->tNanoMsgUDPNet.ptEventFd);
+	#endif
+	printf("++++++XXXXXXXXXXXXXXXXXXXXX++++++++\r\n");
+	return 0;
+	
 }
 
-void *udp_service(void *arg)
+void *UDP_SERVICE_Thread_Handle(void *_pvArg)
 {
-     pthread_t thread_ubroadt;
-     struct server *s =arg;
-     T_EVENT_CTL * ev_ctrl = EVIO_EventCtl_Create();
-     if(ev_ctrl == NULL)
-      goto err;
-    assert(0 == pthread_create(&thread_ubroadt, NULL,udp_broadcast_service,s));
+	T_UDP_NET_EVCTL tUDPNetEventCtl;
+     pthread_t tPthread_udpbrodcast;
+	 T_MAINSERVER *ptMainServer = (T_MAINSERVER *) _pvArg;
+	 tUDPNetEventCtl.ptServer = ptMainServer;
+    if(0 != pthread_create(&tPthread_udpbrodcast, NULL,_UDP_SERVICE_ThreadBroadCastInit,&tUDPNetEventCtl))
+	{
+		printf("udp broadcast Init Failed\n");
+		return NULL;
+	}
+	if(-1 == _UDP_SERVICE_UdpEventCtlInit(&tUDPNetEventCtl))
+	{
+		printf("_UdpEvent Init Failed\n");
+		abort();
+	}
 
-    pthread_mutex_lock(&s->start_lock);
-	++s->start_num;
-	pthread_cond_signal(&s->start_cond);
-	pthread_mutex_unlock(&s->start_lock);
-    
+    pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
+	++ptMainServer->iThread_bStartCnt;
+	pthread_cond_signal(&ptMainServer->tThread_StartCond);
+	pthread_mutex_unlock(&ptMainServer->tThread_StartMutex);
+
      while(1)
-     {
-        EVIO_EventCtlLoop_Start(ev_ctrl);
+     { 
+		 uint8_t *dat = NULL;
+        EVIO_EventCtlLoop_Start(tUDPNetEventCtl.ptEventCtl);
+	
      }
-
-err2:
-    EVIO_EventCtl_Free(ev_ctrl);
-err:
-    abort();
+	EVIO_EventFd_Del(tUDPNetEventCtl.ptEventCtl, tUDPNetEventCtl.tNanoMsgUDPNet.ptEventFd);
+	EVIO_EventCtl_Free(tUDPNetEventCtl.ptEventCtl);
+	close(tUDPNetEventCtl.tNanoMsgUDPNet.iSysFd);
+	nn_close(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd);
+	return NULL;
 }

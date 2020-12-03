@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-17 09:53:04
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 09:37:21
+ * @LastEditTime: 2020-12-02 11:39:28
  */ 
 #ifndef _EVNET_H_
 #define _EVNET_H_
@@ -52,12 +52,12 @@ typedef struct  {
 	int32_t u32Writelen;
 	int32_t u32WriteOffset;
 	int32_t bUsing;
-}T_EV_BUFFER;
+}T_EVNET_BUFFER;
 
 struct T_EVENT_TCP {
 	E_EVENT_TCP_TYPE eType;
 	int32_t iFd;
-	T_EV_BUFFER *ptEvBuffer;
+	T_EVNET_BUFFER *ptEvNetBuffer;
 	T_EVENT_FD *ptEventFd;
 	PF_EVENT_TCP_CALLBACK pfCallBack;
 	void *pvArg;
@@ -69,7 +69,7 @@ typedef void (*PF_EVENT_UDP_CALLBACK)(T_EVENT_CTL *, T_EVENT_UDP *, void *);
 
 struct _T_EVENT_UDP{
 	int32_t iSocketFd;
-	T_EV_BUFFER *ptEvBuffer;
+	T_EVNET_BUFFER *ptEvNetBuffer;
 	T_EVENT_FD *ptEventFd;
 	PF_EVENT_UDP_CALLBACK pfEventCallBack;//接收数据回调控制
 	void *pvArg;
@@ -83,7 +83,7 @@ void ev_tcp_set(ev_ctl_t *evctl, ev_tcp_t *evtcp, ev_tcp_cb_t cb, void *arg);
 int ev_tcp_msg(ev_ctl_t *evctl, ev_tcp_t *evtcp, const char *data, int32_t size);
 #endif
 
-T_EVENT_UDP* EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_TCP_CALLBACK _pfEventCallBack,void *_pvArg);
+T_EVENT_UDP* EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg);
 
 #endif
 

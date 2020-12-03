@@ -13,32 +13,32 @@
 
 //设置网络通信读写缓冲区个数 LISTEN_CLIENT CNT +SERVER +UDP CNT
 
-T_EV_BUFFER atEvBuffers[MAX_BUF_CNT];//只用数组作为网络通信（TCP(server/clinet) UDP) 申请队列，后续根据业务情况使用链表分配释放
+T_EVNET_BUFFER atEvNetBuffers[MAX_BUF_CNT];//只用数组作为网络通信（TCP(server/clinet) UDP) 申请队列，后续根据业务情况使用链表分配释放
 
 
 /*绑定一个可使用得buffer*/
-static T_EV_BUFFER *_EV_NET_BindAFreeBuffer(void)  //网络bind 空闲BUFFER
+static T_EVNET_BUFFER *_EV_NET_BindAFreeBuffer(void)  //网络bind 空闲BUFFER
 {
 	int32_t i;
 	for (i = 0; i < MAX_BUF_CNT; ++i) {
-		if (0 == atEvBuffers[i].bUsing) {
-			atEvBuffers[i].bUsing = 1;
-			return &atEvBuffers[i];
+		if (0 == atEvNetBuffers[i].bUsing) {
+			atEvNetBuffers[i].bUsing = 1;
+			return &atEvNetBuffers[i];
 		}
 	}
 	return NULL;
 }
 
 /*解绑一个可使用得buffer*/
-static void _EV_NET_UnBindAUsingBuffer(T_EV_BUFFER *_ptEvBuffer)
+static void _EV_NET_UnBindAUsingBuffer(T_EVNET_BUFFER *_ptEvNetBuffer)
 {
-	_ptEvBuffer->bUsing = 0;
-	_ptEvBuffer->iReadLen = 0;
-	_ptEvBuffer->iReadOffset = 0;
-	_ptEvBuffer->u32Writelen = 0;
-	_ptEvBuffer->u32WriteOffset = 0;
-	memset(_ptEvBuffer->acReadBuffer, 0, EV_BUFFER_SIZE);
-	memset(_ptEvBuffer->acWriteBuffer, 0, EV_BUFFER_SIZE);
+	_ptEvNetBuffer->bUsing = 0;
+	_ptEvNetBuffer->iReadLen = 0;
+	_ptEvNetBuffer->iReadOffset = 0;
+	_ptEvNetBuffer->u32Writelen = 0;
+	_ptEvNetBuffer->u32WriteOffset = 0;
+	memset(_ptEvNetBuffer->acReadBuffer, 0, EV_BUFFER_SIZE);
+	memset(_ptEvNetBuffer->acWriteBuffer, 0, EV_BUFFER_SIZE);
 }
 
 
@@ -54,7 +54,7 @@ static T_EVENT_UDP *_EV_NET_EventUDP_Create(int _iSocket, void *_pvArg)
     //evudp->type = type;
     //evudp->cb = cb;
     ptEventUDP->pvArg = _pvArg;
-    ptEventUDP->ptEvBuffer = _EV_NET_BindAFreeBuffer();
+    ptEventUDP->ptEvNetBuffer = _EV_NET_BindAFreeBuffer();
 	
     return ptEventUDP;
 }
@@ -64,13 +64,13 @@ static int _EV_NET_EventUDPReadToBuffer(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_p
 {
 	int iClinetSocket_AddrLen = sizeof(struct sockaddr_in);
 	struct sockaddr_in *ptSocketClientAddr;
-	T_EV_BUFFER *ptEvBuffer =_ptEventUdp->ptEvBuffer;
-	int recvlen = recvfrom(_iSocketFd,  ptEvBuffer->acReadBuffer + ptEvBuffer->iReadOffset, \
-					EV_HALFBUF_SIZE - ptEvBuffer->iReadOffset, 0, (struct sockaddr*)ptSocketClientAddr, &iClinetSocket_AddrLen);
+	T_EVNET_BUFFER *ptEvNetBuffer =_ptEventUdp->ptEvNetBuffer;
+	int recvlen = recvfrom(_iSocketFd,  ptEvNetBuffer->acReadBuffer + ptEvNetBuffer->iReadOffset, \
+					EV_HALFBUF_SIZE - ptEvNetBuffer->iReadOffset, 0, (struct sockaddr*)ptSocketClientAddr, &iClinetSocket_AddrLen);
 	if(-1 == recvlen)
 		return 1;
-	ptEvBuffer->iReadLen = recvlen;
-    ptEvBuffer->iReadOffset += recvlen;
+	ptEvNetBuffer->iReadLen = recvlen;
+    ptEvNetBuffer->iReadOffset += recvlen;
 	_ptEventUdp->pfEventCallBack(_ptEventCtl, _ptEventUdp,_ptEventUdp->pvArg);
 		
     return 0;
@@ -105,7 +105,7 @@ static void _EV_NET_EventUDPNetCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_p
 }
 
 /*启动UDP server*/
-T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_TCP_CALLBACK _pfEventCallBack,void *_pvArg)
+T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg)
 {
 	 int opt_bBroadcast = 1;
 	 struct sockaddr_in tUdpSocketAddr;

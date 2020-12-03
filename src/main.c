@@ -4,9 +4,9 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 09:28:49
+ * @LastEditTime: 2020-12-03 10:35:45
  */ 
-
+//__attribute__ ((unused)) #define UNUSED(x) (void)(x)
 
 #include <stdio.h>
 #include <time.h>
@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <time.h>
 #include <sys/time.h>
+#include <pthread.h>
 #include "evio/evio.h"
 #include "net/evnet.h"
 #include "hash/shash.h"
@@ -26,76 +27,51 @@
 
 
 
-void timer_out_ctrl(void *_self, T_EV_TIMER *ev_timer,  void *arg)
+void Main_TimerOut_Handle(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,  void *_pvArg)
 {
-    T_EVENT_CTL * evctl = (T_EVENT_CTL * )_self;
-    printf("++++++++++++++++++++timout->index:%ld tm:%ld,%p\r\n",ev_timer->u64Index,ev_timer->u64Expire,evctl);
-	EVIO_EventTimer_Init(ev_timer,1000,timer_out_ctrl,NULL);
-    EVIO_EventTimer_Start(evctl,ev_timer);
-}
+	T_MAINSERVER *ptMainServer = (T_MAINSERVER *)_pvArg;
+    T_EVENT_CTL * ptEventCtl = (T_EVENT_CTL * )_pvEventCtl;
+    printf("++++++++++++++++++++timout->index:%ld tm:%ld,%p\r\n",_ptEventTimer->u64Index,_ptEventTimer->u64Expire,ptEventCtl);
+	EVIO_EventTimer_Init(_ptEventTimer,1000,Main_TimerOut_Handle,ptMainServer);
+    EVIO_EventTimer_Start(ptEventCtl,_ptEventTimer);
 
-#if 0
-void *pthread_func(void*arg)
-{
-
-	int n = nn_socket(AF_SP, NN_PAIR);
- 
-    if (nn_connect(n, "inproc://b2a_loop") < 0) {
-        return -1;
-    }
-    size_t size = sizeof(size_t);
-	int s=0;
-    if (nn_getsockopt(n, NN_SOL_SOCKET, NN_RCVFD, &s, &size) < 0) {
-        return -1;
-    }
-
-while(1)
-{
-	sleep(1);
-	printf("hello world\r\n");
-	char *str = "OK";
-    uint8_t *dat = nn_allocmsg(3, 0);
+	#if 1
+	char *str = "Main Timer Timout SEND OK";
+    uint8_t *dat = nn_allocmsg(100, 0);
+	printf("dat===%p,%p\n",dat,ptMainServer);
     if (NULL != dat) {
-        memcpy(dat, str, 3);
-	 nn_send(n, &dat, NN_MSG, NN_DONTWAIT);
+         memcpy(dat, str, strlen(str));
+	 	 int ret = nn_send(ptMainServer->tMainServerEventLoop.tNanoMsgFdsUDP.iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
+		 printf("ret====%d\n",ret);
 	}
+	#endif
 	
 }
 
-	
+
+
+void Main_Handle_UDPNanomsgEvent(T_EVENT_CTL *_ptEventCtl, T_MAIN_NANOMSGFDS *_ptMainNanoMsgFds)
+{ 
+	uint8_t *dat = NULL;
+	//uint32_t bytes = 0;
+	T_MAINSERVER *ptMainServer = _ptMainNanoMsgFds->pvArg;
+	//printf("handle udp event....\r\n");
+	uint32_t bytes = nn_recv(_ptMainNanoMsgFds->iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
+	if (-1 != bytes) {
+			printf("+++++++++++++++++++++%s\n",dat);
+			nn_freemsg(dat);
+	}
 }
 
-static void watcher_B2A_cb (ev_ctl_t *evctl, ev_fd_t *evfd, int fd, ev_type_t type, void *arg)
+void Main_EventLoop_Handle(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iFd, E_EV_TYPE _eType, void *_pvArg)
 {
-   
-    uint8_t *dat = NULL;
-	int n = *(int*)arg;
-    uint32_t bytes = nn_recv(n, &dat, NN_MSG, NN_DONTWAIT);
-    if (bytes <= 0) {
-        return;
-    }
-    //杞彂鍒癇
-    printf("A:%s (B->A)\r\n", (char *)dat);
-	nn_freemsg(dat);
-}
-
-#endif
-
-
-void handle_udp_event(T_EVENT_CTL *ctl, struct servfds *sfd)
-{
-	struct server *s = sfd->arg;
-	printf("handle udp event....\r\n");
-}
-
-static void main_loop_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE type, void *arg)
-{
-	struct servfds *sfd = arg;
-	struct server *s = sfd->arg;
-
-    switch (type) {
+	T_MAIN_NANOMSGFDS *ptMainNanoMsgFds = _pvArg;
+	//T_MAINSERVER *ptMainServer = _ptMainNanoMsgFds->pvArg;
+    printf("+++++++++++++++++++++++++++++++Main_EventLoop_Handle\n");
+    switch (_eType) {
 	    case E_EV_READ:
-	        sfd->cb(evctl, sfd);
+			printf("ev.....read\n");
+	        ptMainNanoMsgFds->pfCallBack(_ptEventCtl, ptMainNanoMsgFds);
 	        break;
 		case E_EV_WRITE:
 			printf("Main loop write event, unexpected\n");
@@ -108,102 +84,127 @@ static void main_loop_cb(T_EVENT_CTL *evctl, T_EVENT_FD *evfd, int fd, E_EV_TYPE
     }
 }
 
-int32_t nn_socket_init(struct server *s)
+int32_t Main_NanomsgSocket_Init(T_MAINSERVER *_ptMainServer)
 {
-	struct servloop *sl = &s->sloop;
 	size_t size = sizeof(size_t);
-	sl->sfds_udp.n = nn_socket(AF_SP, NN_PAIR);
-	if (-1 == sl->sfds_udp.n)
-		goto err;
-	if (-1 == nn_bind(sl->sfds_udp.n, "inproc://udp2serv"))
-		goto err1;
+	T_MAINSERVEREVENTLOOP *ptMainServerEventLoop = &_ptMainServer->tMainServerEventLoop;
 	
-	if (-1 == nn_getsockopt(sl->sfds_udp.n, NN_SOL_SOCKET, NN_RCVFD, (char *)&sl->sfds_udp.s, &size))
-		goto err1;
+	ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd= nn_socket(AF_SP, NN_PAIR);
+	if (-1 == ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd)
+	{
+		printf("+++main_loop nn_socket error...\n");
+		return -1;
+	}
+	if (-1 == nn_bind(ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd, "inproc://udp<->main"))
+	{
+		nn_close(ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd);
+		printf("+++main_loop nn_bind error...\n");
+		return -1;
+	}
 	
+	if (-1 == nn_getsockopt(ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd, NN_SOL_SOCKET, NN_RCVFD, (char *)&ptMainServerEventLoop->tNanoMsgFdsUDP.iSysFd, &size))
+	{
+     	nn_close(ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd);
+		printf("+++main_loop nn_getsockopt error...\n");
+		return -1;
+	}
 	return 0;
-err1:
-	nn_close(sl->sfds_udp.n);
-err:
-	return -1;
 }
-void nn_socket_close(struct server *s)
+void Main_NanomsgSocket_Close(T_MAINSERVER *_ptMainServer)
 {
-	struct servloop *sl = &s->sloop;
-	close(sl->sfds_udp.s);
-	nn_close(sl->sfds_udp.n);
+	T_MAINSERVEREVENTLOOP *ptMainServerEventLoop = &_ptMainServer->tMainServerEventLoop;
+	close(ptMainServerEventLoop->tNanoMsgFdsUDP.iSysFd);
+	nn_close(ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd);
 
 }
-int32_t  main_loop(struct server *s)
+int32_t  Main_Loop_Init(T_MAINSERVER *_ptMainServer)
 {
 	
-	struct servloop *sl = &s->sloop;
-	if (-1 == nn_socket_init(s))
+	T_MAINSERVEREVENTLOOP *ptMainServerEventLoop = &_ptMainServer->tMainServerEventLoop;
+	if (-1 == Main_NanomsgSocket_Init(_ptMainServer))
 		return -1;
 
-	sl->sfds_udp.cb = handle_udp_event;//UDP enventloop main server
-    sl->sfds_udp.arg = s;
-
-	 s->sloop.evctl = EVIO_EventCtl_Create();  //创建一个事件控制器 creator event contoler
-	 if(NULL == s->sloop.evctl)
-	 goto err1;
-	 
-    sl->sfds_udp.evfd = EVIO_EventFd_Add(sl->evctl, sl->sfds_udp.s, main_loop_cb, &sl->sfds_udp);//add the event fd 
-	if (NULL == sl->sfds_udp.evfd)
-		goto err2;
-	 EVIO_Event_Watch_Read(s->sloop.evctl, sl->sfds_udp.evfd);
-	 EVIO_EventTimer_Init(&s->ev_timer,1000,timer_out_ctrl,NULL);
-	 EVIO_EventTimer_Start(s->sloop.evctl,&s->ev_timer);
-
+	
+	ptMainServerEventLoop->ptEventCtl= EVIO_EventCtl_Create();  //创建一个事件控制器 creator event contoler
+	if(NULL == ptMainServerEventLoop->ptEventCtl)
+	 {
+		 printf("+++ptMainServerEventLoop->ptEventCtl error\n");
+		 Main_NanomsgSocket_Close(_ptMainServer);
+		 return -1;
+	 }
+	
+	#if 1
+    ptMainServerEventLoop->tNanoMsgFdsUDP.ptEventFd = EVIO_EventFd_Add(ptMainServerEventLoop->ptEventCtl,\
+													  ptMainServerEventLoop->tNanoMsgFdsUDP.iSysFd, \
+													  Main_EventLoop_Handle, &ptMainServerEventLoop->tNanoMsgFdsUDP);//add the event fd 
+	if (NULL == ptMainServerEventLoop->tNanoMsgFdsUDP.ptEventFd)
+	{
+		printf("+++ptMainServerEventLoop->tNanoMsgFdsUDP.ptEventFd error\n");
+		EVIO_EventCtl_Free(ptMainServerEventLoop->ptEventCtl);
+		Main_NanomsgSocket_Close(_ptMainServer);
+		return -1;
+	}
+	ptMainServerEventLoop->tNanoMsgFdsUDP.pfCallBack= Main_Handle_UDPNanomsgEvent;//UDP enventloop main server
+    ptMainServerEventLoop->tNanoMsgFdsUDP.pvArg = _ptMainServer;
+	
+	 EVIO_Event_Watch_Read(ptMainServerEventLoop->ptEventCtl, ptMainServerEventLoop->tNanoMsgFdsUDP.ptEventFd);
+	 #endif
+	 EVIO_EventTimer_Init(&_ptMainServer->tEventTimer,1000,Main_TimerOut_Handle,_ptMainServer);
+	 EVIO_EventTimer_Start(ptMainServerEventLoop->ptEventCtl,&_ptMainServer->tEventTimer);
 	 return 0;
-err2:
-	EVIO_EventCtl_Free(sl->evctl);
-err1:
-	nn_socket_close(s);
-	return -1;
 }
 
-void main_loop_del(struct server *s)
+void Main_Loop_Del(T_MAINSERVER *_ptMainServer)
 {
-	struct servloop *sl = &s->sloop;
-	EVIO_EventFd_Del(sl->evctl, sl->sfds_udp.evfd);
-	EVIO_EventCtl_Free(sl->evctl);
-	nn_socket_close(s);
+	T_MAINSERVEREVENTLOOP *ptMainServerEventLoop = &_ptMainServer->tMainServerEventLoop;
+	EVIO_EventFd_Del(ptMainServerEventLoop->ptEventCtl, ptMainServerEventLoop->tNanoMsgFdsUDP.ptEventFd);
+	EVIO_EventCtl_Free(ptMainServerEventLoop->ptEventCtl);
+	Main_NanomsgSocket_Close(_ptMainServer);
 }
 int main( void )
 {
      int i =0;
 	 int ret =0;
-	 struct server server;
-	 pthread_t thread_udp;
+	 T_MAINSERVER tmainServer;
+	 pthread_t tThreadUDP;
 	 
-	 ret = main_loop(&server);
+	 ret = Main_Loop_Init(&tmainServer);
 	 if(-1 == ret)
-	 goto err1;
-     server.start_num = 0;
-	 pthread_mutex_init(&server.start_lock, NULL);
-	 pthread_cond_init(&server.start_cond, NULL);
+	 {
+		printf("+++main loop init... error\n");
+		return -1;
+	 }
+	 sleep(1);
+     tmainServer.iThread_bStartCnt = 0;
+	 pthread_mutex_init(&tmainServer.tThread_StartMutex, NULL);
+	 pthread_cond_init(&tmainServer.tThread_StartCond, NULL);
+	 ret =pthread_create(&tThreadUDP,NULL,UDP_SERVICE_Thread_Handle,&tmainServer);
 
-	 ret =pthread_create(&thread_udp,NULL,udp_service,&server);
 	 if(-1 == ret)
-	 goto err2;
+	 {
+		printf("+++udp pthread create... error\n");
+		Main_Loop_Del(&tmainServer);
+		return -1; 
+	 }
 
-	 while (server.start_num < 1) {
-        pthread_mutex_lock(&server.start_lock);
-        pthread_cond_wait(&server.start_cond, &server.start_lock);
-        pthread_mutex_unlock(&server.start_lock);
-        printf("start num is %d", server.start_num);    
+	 while (tmainServer.iThread_bStartCnt < 1) {
+        pthread_mutex_lock(&tmainServer.tThread_StartMutex);
+        pthread_cond_wait(&tmainServer.tThread_StartCond, &tmainServer.tThread_StartMutex);
+        pthread_mutex_unlock(&tmainServer.tThread_StartMutex);
+        printf("pthread isstart cnt is %d\n", tmainServer.iThread_bStartCnt);    
   	}
+	  printf("++++++++tmainServer.tMainServerEventLoop.tNanoMsgFdsUDP.iNanomsgFd:%d\n",tmainServer.tMainServerEventLoop.tNanoMsgFdsUDP.iNanomsgFd);
      while(1)
      {
-        EVIO_EventCtlLoop_Start(server.sloop.evctl);
+		
+        EVIO_EventCtlLoop_Start(tmainServer.tMainServerEventLoop.ptEventCtl);
+		#if 0
+		 uint8_t *dat = NULL;
+		uint32_t bytes = nn_recv(tmainServer.tMainServerEventLoop.tNanoMsgFdsUDP.iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
+		if (-1 != bytes) {
+			printf("++++++++++++++++++++++111111111111111111111%s\n",dat);
+		}
+		#endif
      }
-err2:
-	printf("main err2...\r\n");
-	 main_loop_del(&server);
-err1:
-	printf("main err1....\r\n");
-	 return -1;
-
-        
+  return 0;
 }

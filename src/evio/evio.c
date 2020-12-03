@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:51
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-01 16:19:09
+ * @LastEditTime: 2020-12-02 16:37:38
  */ 
 #include <stdio.h>
 #include <unistd.h>
@@ -89,11 +89,11 @@ void EVIO_EventCtlLoop_Start(T_EVENT_CTL *_ptEventCtl)
         if (ptEventFd->bIsDel)
             continue;
         if ((events & EPOLLIN) && (ptEventFd->iEvents & EPOLLIN))
-            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_READ, ptEventFd->pvArg);
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_READ, ptEventFd->pvArg);
         if (!ptEventFd->bIsDel && (events & EPOLLOUT) && (ptEventFd->iEvents & EPOLLOUT))
-            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_WRITE, ptEventFd->pvArg);
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_WRITE, ptEventFd->pvArg);
         if (!ptEventFd->bIsDel && events & (EPOLLHUP | EPOLLERR))
-            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, EV_ERROR, ptEventFd->pvArg);
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_ERROR, ptEventFd->pvArg);
     }
 
     _ptEventCtl->bLooping = 0;
@@ -192,16 +192,15 @@ void EVIO_EventTimer_Init(T_EV_TIMER *timer, uint64_t _u64timeout_ms, PF_EVTIMER
     timer->u64Index = -1;
     timer->pfEvTimerCb = _pfEvTimerCB;
     timer->pvArg = _pvArg;
-    printf("init.....over...Timer:%p\r\n",timer);
 	
 }
 
 void EVIO_EventTimer_Start(T_EVENT_CTL *_ptEventCtl,T_EV_TIMER *_ptEventTimer)
 {
    
-        T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
-       printf("Enter...EVCTL%p.--TIMEREVCTL>%p---->timer:%p\n",_ptEventCtl,ptEventTimerCtl,_ptEventTimer);
-        ptEventTimerCtl->pfEvTimerCtlPush(ptEventTimerCtl, _ptEventTimer);
+   T_EV_TIMER_CTRL *ptEventTimerCtl = _ptEventCtl->ptEventTimerCtrl;
+   //printf("Enter...EVCTL%p.--TIMEREVCTL>%p---->timer:%p\n",_ptEventCtl,ptEventTimerCtl,_ptEventTimer);
+   ptEventTimerCtl->pfEvTimerCtlPush(ptEventTimerCtl, _ptEventTimer);
     
 }
 
@@ -239,7 +238,7 @@ T_EVENT_CTL *EVIO_EventCtl_Create(void)
         }
 
 	ptEventCtl->ptEventTimerCtrl = EV_TIMER_Ctl_Create();
-    printf("++++Creator+++++++ptEventCtl->ptEventTimerCtrl:%p\n",ptEventCtl->ptEventTimerCtrl);
+   // printf("++++Creator+++++++ptEventCtl->ptEventTimerCtrl:%p\n",ptEventCtl->ptEventTimerCtrl);
 	if (NULL == ptEventCtl->ptEventTimerCtrl)
 	    {
             printf("%s-%d\n",__func__,__LINE__);
