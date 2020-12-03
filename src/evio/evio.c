@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:51
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 16:37:38
+ * @LastEditTime: 2020-12-03 14:28:23
  */ 
 #include <stdio.h>
 #include <unistd.h>
@@ -33,10 +33,8 @@ static int _EVIO_Calc_Timeout(T_EVENT_CTL *_ptEventCtl)
         return TIMEMOUT_TM;
 
     uint64_t now =EVIO_Get_CurentTime_ms();
-    //printf("now===%d\r\n",now);
     T_EV_TIMER *ptEvenTimer = ptEvTimerCtl->pfEvTimerCtlPeek(ptEvTimerCtl);/*最小堆root 节点查看*/
-    //printf("peek:%p\r\n",timer);
-    //printf("expire===%d\r\n",timer->expire);
+ 
 	/* 已经有任务超时 */
     if (ptEvenTimer->u64Expire <= now)
         return 0;

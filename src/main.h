@@ -4,13 +4,17 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 09:04:27
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 14:51:36
+ * @LastEditTime: 2020-12-03 11:31:20
  */ 
 
 #ifndef _MAIN_H
 #define _MAIN_H
 
 #include "evio/evio.h"
+#include "zlog/zlog.h"
+
+#define ZLOGCONF					"/home/conf/zlog.conf"
+#define SOFT_VER                    "V1.0.0"          
 
 typedef struct _T_MAINSERVER 	  T_MAINSERVER;
 typedef struct _T_MAIN_NANOMSGFDS T_MAIN_NANOMSGFDS;
@@ -34,6 +38,7 @@ struct _T_MAINSERVER {
 	int32_t iThread_bStartCnt; //启动server 服务线程数
 	pthread_mutex_t tThread_StartMutex;
     pthread_cond_t tThread_StartCond;
+	zlog_category_t *ptZlogCategory;
 };
 
 #endif

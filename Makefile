@@ -203,17 +203,23 @@ SOURCE   += src/nanomsg/aio/poller.c
 #evio
 SOURCE  += src/net/evnet.c
 
-#nanomsg
+#evtimer
 SOURCE  += src/timer/evtimer.c
 
+######################################zlog################################
+SOURCE  +=$(wildcard src/zlog/*.c)
 
-SUBDIRS := $(shell find -type d)
+
+
+
+SUBDIRS := $(shell find src -type d)
 
 #$(shell mkdir -p $(TOP_DIR)$(INSTALL_DIR))
 
 $(shell for val in $(SUBDIRS);do \
 mkdir -p $(TOP_DIR)$(INSTALL_DIR)/$${val}; \
 done;)
+$(shell cp zlog_config/* bin/)
 
 OBJS = $(SOURCE:%.c=$(TOP_DIR)$(INSTALL_DIR)/%.o)
 
@@ -248,3 +254,7 @@ clean:
 	-rm -rf $(TOP_DIR)$(INSTALL_DIR)
 test:
 	insight $(TOP_DIR)$(INSTALL_DIR)/$(PROJECT)
+
+
+zlog:
+	@echo "get SOUCE-->C File"$(SOURCEx)
