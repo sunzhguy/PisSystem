@@ -4,12 +4,15 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 15:35:01
+ * @LastEditTime: 2020-12-16 11:59:19
  */
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include "../nanomsg/pair.h"
+#include "../nanomsg/nn.h"
 #include "broadcast.h"
 #include "mp3_decoder.h"
 #include "../manage/dev_status.h"
@@ -592,7 +595,6 @@ void    BROADCAST_TimerOut_Process(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,
     T_EVENT_CTL * ptEventCtl                = (T_EVENT_CTL * )_pvEventCtl;
     zlog_info(ptMainServer->ptZlogCategory,"+++++++++++BROADCAST_TimerOut_Process!!!\n");
 
-#if 0
 	if(PISC_LOCAL_GetMasterFlag())//主
 	{
 		if(_BROADCAST_Get_MP3DecodeFlag())//解码
@@ -613,26 +615,105 @@ void    BROADCAST_TimerOut_Process(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,
 			
 		}
 	}
-	#endif
-
-
 	
 	EVIO_EventTimer_Init(_ptEventTimer,1000,BROADCAST_TimerOut_Process,ptBroadCastService);
     EVIO_EventTimer_Start(ptEventCtl,_ptEventTimer);
 }
 
+
+void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFDS *_ptBroadCastNanoMsgFd)
+{ 
+	uint8_t *dat = NULL;
+	T_BROADCAST_SERVICE* ptBroadCastService   = _ptBroadCastNanoMsgFd->pvArg;
+	T_MAINSERVER *ptMainServer = ptBroadCastService->ptMainServer;
+	uint32_t bytes = nn_recv(_ptBroadCastNanoMsgFd->iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
+	if (-1 != bytes) {
+			zlog_info(ptMainServer->ptZlogCategory,"UDP---------------->Broadcast++%d\n",bytes);
+
+			
+			nn_freemsg(dat);
+	}
+}
+
+void _BROADCAST_EventNanoMsgCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd, int _iFd, E_EV_TYPE _eType, void *_pvArg)
+{
+	T_BROADCAST_NANOMSGFDS *ptNanoMsgFdsUdp2BroadCast = _pvArg;
+	T_MAINSERVER *ptMainServer = ptNanoMsgFdsUdp2BroadCast->pvArg;
+    //zlog_debug(ptMainServer->ptZlogCategory,"+++++++++++++++++++++++++++++++Main_EventLoop_Handle\n");
+    switch (_eType) {
+	    case E_EV_READ:
+	        ptNanoMsgFdsUdp2BroadCast->pfCallBack(_ptEventCtl, ptNanoMsgFdsUdp2BroadCast);
+	        break;
+		case E_EV_WRITE:
+			zlog_warn(ptMainServer->ptZlogCategory,"Broadcast write event, unexpected\n");
+			break;
+		case E_EV_ERROR:
+			zlog_error(ptMainServer->ptZlogCategory,"Broadcast error event, unexpected\n");
+			break;
+	    default:
+			zlog_warn(ptMainServer->ptZlogCategory,"Broadcast unknow event, unexpected\n");
+    }
+}
+
+static int32_t _BROADCAST_NanomsgSocket_Init(T_BROADCAST_SERVICE  *_ptBroadCastService)
+{
+	size_t size = sizeof(size_t);
+   T_MAINSERVER *ptMainServer     = ((T_BROADCAST_SERVICE *) _ptBroadCastService)->ptMainServer;
+	_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd = nn_socket(AF_SP, NN_PAIR);
+	if (-1 == _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd)
+	{
+		zlog_error(ptMainServer->ptZlogCategory,"+++BROADCAST nn_socket error...\n");
+		return -1;
+	}
+	if (-1 == nn_bind(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd, "inproc://udp<->broadcast"))
+	{
+		nn_close(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd);
+		zlog_error(ptMainServer->ptZlogCategory,"+++BROADCAST nn_bind error...\n");
+		return -1;
+	}
+	
+	if (-1 == nn_getsockopt(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd, NN_SOL_SOCKET, NN_RCVFD,
+										 (char *)&_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iSysFd, &size))
+	{
+     	nn_close(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd);
+		zlog_error(ptMainServer->ptZlogCategory,"+++++BROADCAST nn_getsockopt error...\n");
+		return -1;
+	}
+	_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.pfCallBack= _BROADCAST_UDPNanomsgHandle;//UDP enventloop broadcast 
+    _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.pvArg     = _ptBroadCastService;
+    _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.ptEventFd = EVIO_EventFd_Add(_ptBroadCastService->ptEventCtl,\
+													  _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iSysFd, \
+													  _BROADCAST_EventNanoMsgCallBack, &_ptBroadCastService->tNanoMsgFdsUdp2BroadCast);//add the event fd 
+	if (NULL == _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.ptEventFd)
+	{
+	
+		zlog_error(ptMainServer->ptZlogCategory,"+++_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.ptEventFd error\n");
+		close(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iSysFd);
+		nn_close(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd);
+		return -1;
+	}
+	 EVIO_Event_Watch_Read(_ptBroadCastService->ptEventCtl, _ptBroadCastService->tNanoMsgFdsUdp2BroadCast.ptEventFd);
+	return 0;
+}
 void  *BROADCAST_Service_ThreadHandle(void *_pvArg)
 {
    T_MAINSERVER *ptMainServer     = (T_MAINSERVER *) _pvArg;
    tBroadCastService.ptEventCtl   = EVIO_EventCtl_Create();  //创建一个事件控制器
    tBroadCastService.ptMainServer = ptMainServer;
+
    if(NULL == tBroadCastService.ptEventCtl)
 	 {
 		 zlog_error(ptMainServer->ptZlogCategory,"+++BroadCast Service  EventCtl Failed\n");
 		 return NULL;
 	 }
 	zlog_info(ptMainServer->ptZlogCategory,"BROADCAST Service Thread Creator Success!!!\n");
-    EVIO_EventTimer_Init(&tBroadCastService.tEventTimer,1000,BROADCAST_TimerOut_Process,&tBroadCastService);
+    if(_BROADCAST_NanomsgSocket_Init(&tBroadCastService) != 0)
+	{
+		EVIO_EventCtl_Free(tBroadCastService.ptEventCtl);
+		return NULL;
+	}
+	
+	EVIO_EventTimer_Init(&tBroadCastService.tEventTimer,1000,BROADCAST_TimerOut_Process,&tBroadCastService);
 	EVIO_EventTimer_Start(tBroadCastService.ptEventCtl,&tBroadCastService.tEventTimer);
 
     pthread_mutex_lock(&ptMainServer->tThread_StartMutex);

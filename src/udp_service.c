@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 11:36:32
+ * @LastEditTime: 2020-12-16 11:13:16
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -160,7 +160,7 @@ static int32_t _UDP_SERVICE_UdpEventCtlInit(T_UDP_NET_EVCTL *_ptUdpNetEventCtl)
 		zlog_error(ptMainServer->ptZlogCategory,"++++nn_socket failed\n");
 		return -1;
 	}
-	if (-1 == nn_connect(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, "inproc://udp<->main"))
+	if (-1 == nn_connect(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, "inproc://udp<->broadcast"))
 	{
 	  zlog_error(ptMainServer->ptZlogCategory,"++++nn_connect failed\n");
       nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
@@ -252,4 +252,14 @@ void UDP_SERVICE_SendData(uint8_t* _pcBuf,uint32_t _u32DatLen)
       EV_NET_EventUDP_WriteData(tUDPNetEventCtl.ptUDPEventCtl,tUDPNetEventCtl.ptEventUdp,_pcBuf,_u32DatLen);
 	}
 	
+}
+
+void  UDP_SERVICE_SendNanoMsg(uint8_t *_pcMsg)
+{
+	if(_pcMsg != NULL)
+	{
+		printf("22222222222\r\n");
+	 int bytes = 	nn_send(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd, &_pcMsg, NN_MSG, NN_DONTWAIT);
+	 printf("222222bytes===%d\r\n",bytes);
+	}
 }

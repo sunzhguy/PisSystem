@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:20
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 13:58:44
+ * @LastEditTime: 2020-12-16 11:06:08
  */
 #ifndef BROADCAST_H
 #define BROADCAST_H
@@ -22,6 +22,11 @@
 #define BROADCAST_MEDIA	       0x09//媒体广播
 #define BROADCAST_LIVE         0x0A//紧急广播
 #define BROADCAST_NONE 	       0x10//无报站
+
+
+
+#define BROADCAST_PLAY        0x01
+#define BROADCAST_STOP        0x00
 
 
 //优先级
@@ -58,11 +63,19 @@ void    BROADCAST_SendPriority(void);
 void    BROADCAST_SendVolume(void);
 uint8_t BROADCAST_GetPriority(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8TypeBroadCast);
 
-
+typedef struct _T_BROADCAST_NANOMSGFDS  T_BROADCAST_NANOMSGFDS;
+struct _T_BROADCAST_NANOMSGFDS{
+	int iSysFd;			/* sys fd*/
+	int iNanomsgFd;			/* nanomsg fd */
+	T_EVENT_FD *ptEventFd;
+	void (*pfCallBack)(T_EVENT_CTL *, T_BROADCAST_NANOMSGFDS *);
+	void *pvArg;
+};
 typedef struct {
     T_EVENT_CTL  *ptEventCtl;//事件控制器
     T_EV_TIMER   tEventTimer;//添加一个定时器
     T_MAINSERVER *ptMainServer;
+    T_BROADCAST_NANOMSGFDS tNanoMsgFdsUdp2BroadCast;
 }T_BROADCAST_SERVICE;
 
 void  *BROADCAST_Service_ThreadHandle(void *_pvArg);

@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 09:52:09
+ * @LastEditTime: 2020-12-16 11:11:38
  */
 
 #include <stdio.h>
@@ -22,6 +22,7 @@
 #include "../include/pis_config.h"
 #include "../manage/broadcast.h"
 #include "../driver/systime.h"
+#include "../udp_service.h"
 
 //TMS 上下行
 #define  TMS_RUNDIR_UP     (1)
@@ -260,6 +261,20 @@ static void _TMS_TimeSet (T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFrame)
 	PISC_LOCAL_SetTime((uint8_t *)&ptTmsRecvPacket->tTmsTime,sizeof(T_TMSTIME));
 
 }
+
+void TMS_SendNanoMsgToBroadCast(uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType)
+{
+	uint8_t *dat = nn_allocmsg(5, 0);
+    if (NULL != dat) {
+         dat[0] = BROADCAST_PLAY;
+		 dat[1] = _u8DevType;
+		 dat[2] = _u8DevId;
+		 dat[3] = _u8BdType;
+		 printf("++++++++111++++++++\r\n");
+	 	 UDP_SERVICE_SendNanoMsg(dat);
+	}
+
+}
 static void _TMS_PreBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFrame)
 {
 
@@ -279,6 +294,7 @@ static void _TMS_PreBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackData
 		printf("+++++++++++PPPPPPPPPPPPPPPPPPPPPPPPP+++++++++++++\r\n");
 		//预到站广播
 		//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
+		TMS_SendNanoMsgToBroadCast(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
 		PISC_LOCAL_SetPreFlag(1);
 		PISC_LOCAL_SetArrFlag(0);
 

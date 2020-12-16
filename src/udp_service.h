@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 10:22:12
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-14 16:26:31
+ * @LastEditTime: 2020-12-16 11:01:59
  */ 
 /*网络服务线程*/
 #ifndef UDP_SERVICE
@@ -38,4 +38,6 @@ typedef struct _T_UDP_NET_EVCTL{
 
 void *UDP_SERVICE_Thread_Handle(void *_pvArg);
 void  UDP_SERVICE_SendData(uint8_t* _pcBuf,uint32_t _u32DatLen);
+void  UDP_SERVICE_SendNanoMsg(uint8_t *_pcMsg);
+
 #endif
