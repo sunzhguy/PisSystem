@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-03 16:54:25
+ * @LastEditTime: 2020-12-15 11:36:32
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -12,54 +12,43 @@
 #include <string.h>
 #include <assert.h>
 #include <pthread.h>
-#include "net/evnet.h"
+
 #include "udp_service.h"
-#include "evio/evio.h"
-#include "nanomsg/pair.h"
-#include "nanomsg/nn.h"
-#include "main.h"
+#include "port_layer/ctrl_udport.h"
 
 
-typedef struct _T_UDP_NANOMSG_EVFDS  T_UDP_NANOMSG_EVFDS;
 
-struct _T_UDP_NANOMSG_EVFDS {
-	int iSysFd;				/* sys fd*/
-	int iNanoMsgFd;			/* nanomsg fd */
-	T_EVENT_FD *ptEventFd;
-	void (*pfEventCallBack)(T_EVENT_CTL *, T_UDP_NANOMSG_EVFDS *);
-	void *pvArg;
-};
 
-typedef struct _T_UDP_NET_EVCTL{
-	char cInitFlag;
-	T_EVENT_CTL *ptEventCtl;
-	T_UDP_NANOMSG_EVFDS tNanoMsgUDPNet;
-	T_MAINSERVER *ptServer;
-}T_UDP_NET_EVCTL;
 
 
  void _UDP_SERVICE_UdpRecive_EventCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP , void *_pvArg)
  {
-     //int beg =0;
-	 uint32_t dat_len =0;
+     uint32_t beg = 0;
+	 uint32_t left_len =0;
      T_EVNET_BUFFER *ptEvNetBuffer = _ptEventUDP->ptEvNetBuffer;
 	 T_UDP_NET_EVCTL *ptUdpNetEventCtl = (T_UDP_NET_EVCTL *) _pvArg;
-     //printf("UDP  recive....%s\r\n",ptEvNetBuffer->acReadBuffer);
-	 dat_len = ptEvNetBuffer->iReadOffset;
-     ptEvNetBuffer->iReadOffset = 0x00;
-	#if 1
-	{
-		uint8_t *dat = nn_allocmsg(dat_len+1, 0);
-		//printf("dat===%p,%p\n",dat,ptUdpNetEventCtl);
-		if (NULL != dat) {
-			memcpy(dat, ptEvNetBuffer->acReadBuffer, dat_len);
-			int ret = nn_send(ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
-			//printf("ret====%d\n",ret);
-			
-		}
-	}
-	#endif
 
+	 if(ptEvNetBuffer->iReadLen >0)
+	 { 
+		  if(ptEvNetBuffer->iReadLen >=1024)
+		  {
+			 CTRL_UDPORT_ReadAFrameData(ptEvNetBuffer->acReadBuffer,1024);//PIS 过程数据读取1K数据
+			  left_len = ptEvNetBuffer->iReadLen -1024;
+			  beg = 1024;
+		  }else
+		  {
+			 
+			  CTRL_UDPORT_ReadAFrameData(ptEvNetBuffer->acReadBuffer,ptEvNetBuffer->iReadLen);//PIS 过程数据读取1K数据
+			  left_len =0;
+		  }
+		  
+		  ptEvNetBuffer->iReadOffset = left_len;
+		  if(ptEvNetBuffer->iReadOffset > 0)
+		  {
+			  memmove(ptEvNetBuffer->acReadBuffer, ptEvNetBuffer->acReadBuffer + beg, ptEvNetBuffer->iReadOffset);
+		  }
+		  
+	 }
 	#if 0
 		ev_buffer_t *b = evtcp->buffer;
 		uint16_t beg = 0;
@@ -88,22 +77,33 @@ typedef struct _T_UDP_NET_EVCTL{
 	#endif
  }
 
+
+
+
 void *_UDP_SERVICE_ThreadBroadCastInit(void *_pvArg)
 {
      T_EVENT_CTL * ptEventCtl = EVIO_EventCtl_Create();
-	 T_MAINSERVER *ptMainServer = ((T_UDP_NET_EVCTL *) _pvArg)->ptServer;
+	 T_UDP_NET_EVCTL *ptUdpNetEventCtl = (T_UDP_NET_EVCTL *) _pvArg;
+	 T_MAINSERVER *ptMainServer = ptUdpNetEventCtl->ptServer;
+	 
+
+
     if(ptEventCtl == NULL)
 	{
 		 zlog_error(ptMainServer->ptZlogCategory,"ThreadBroadCastInit ptEventCtl Create error\n");
 		 abort();
 	}
-     T_EVENT_UDP *ptEventUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,"168.168.102.255",5555,_UDP_SERVICE_UdpRecive_EventCallBack,_pvArg);
+     T_EVENT_UDP *ptEventUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,"168.168.102.255",50152,50152,_UDP_SERVICE_UdpRecive_EventCallBack,_pvArg);
+	  
 	 if(ptEventUdp == NULL)
      {
           zlog_error(ptMainServer->ptZlogCategory,"Event UDP create failed\r\n");
 		  EVIO_EventCtl_Free(ptEventCtl);
           abort();
      }
+
+	 ptUdpNetEventCtl->ptUDPEventCtl = ptEventCtl;
+	 ptUdpNetEventCtl->ptEventUdp = ptEventUdp;
      while(1)
      {
         EVIO_EventCtlLoop_Start(ptEventCtl);
@@ -205,12 +205,17 @@ static int32_t _UDP_SERVICE_UdpEventCtlInit(T_UDP_NET_EVCTL *_ptUdpNetEventCtl)
 	
 }
 
+T_UDP_NET_EVCTL tUDPNetEventCtl;
+
 void *UDP_SERVICE_Thread_Handle(void *_pvArg)
 {
-	T_UDP_NET_EVCTL tUDPNetEventCtl;
+	
      pthread_t tPthread_udpbrodcast;
+	 
 	 T_MAINSERVER *ptMainServer = (T_MAINSERVER *) _pvArg;
 	 tUDPNetEventCtl.ptServer = ptMainServer;
+	 tUDPNetEventCtl.ptUDPEventCtl = NULL;
+	 tUDPNetEventCtl.ptEventUdp = NULL;
     if(0 != pthread_create(&tPthread_udpbrodcast, NULL,_UDP_SERVICE_ThreadBroadCastInit,&tUDPNetEventCtl))
 	{
 		zlog_error(ptMainServer->ptZlogCategory,"udp broadcast Init Failed\n");
@@ -236,4 +241,15 @@ void *UDP_SERVICE_Thread_Handle(void *_pvArg)
 	close(tUDPNetEventCtl.tNanoMsgUDPNet.iSysFd);
 	nn_close(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd);
 	return NULL;
+}
+
+
+void UDP_SERVICE_SendData(uint8_t* _pcBuf,uint32_t _u32DatLen)
+{
+	if(tUDPNetEventCtl.ptUDPEventCtl !=NULL && tUDPNetEventCtl.ptEventCtl!= NULL)
+	{
+	  //printf("write data....%d\r\n",_u32DatLen);
+      EV_NET_EventUDP_WriteData(tUDPNetEventCtl.ptUDPEventCtl,tUDPNetEventCtl.ptEventUdp,_pcBuf,_u32DatLen);
+	}
+	
 }

@@ -206,9 +206,35 @@ SOURCE  += src/net/evnet.c
 #evtimer
 SOURCE  += src/timer/evtimer.c
 
-######################################zlog################################
+######################################zlog#########################
 SOURCE  +=$(wildcard src/zlog/*.c)
 
+######################################driver###############
+SOURCE  +=$(wildcard src/driver/*.c)
+
+######################################port_layer##################
+SOURCE  +=$(wildcard src/port_layer/*.c)
+
+######################################lib##################
+SOURCE  +=$(wildcard src/lib/*.c)
+
+######################################operate_device###############
+SOURCE  +=$(wildcard src/process_matrix/*.c)
+
+######################################operate_device###############
+SOURCE  +=$(wildcard src/operate_device/*.c)
+
+######################################teminal_device###############
+SOURCE  +=$(wildcard src/teminal_device/*.c)
+
+######################################port_layer###############
+SOURCE  +=$(wildcard src/port_layer/*.c)
+
+######################################manage###############
+SOURCE  +=$(wildcard src/manage/*.c)
+
+######################################dev_manage###############
+####SOURCE  +=$(wildcard src/dev_manage/*.c)
 
 
 

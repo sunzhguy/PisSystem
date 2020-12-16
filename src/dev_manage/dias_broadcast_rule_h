@@ -1,0 +1,17 @@
+/*
+ * @Descripttion: Digital station announcer 数字报站器广播规则
+ * @vesion: 
+ * @Author: sunzhguy
+ * @Date: 2020-12-08 16:05:12
+ * @LastEditor: sunzhguy
+ * @LastEditTime: 2020-12-14 14:01:37
+ */
+
+#ifndef DISA_BROADCAST_RULE_H
+#define DISA_BROADCAST_RULE_H
+
+#include "../include/general.h"
+void Dias_BroadCast_Rule_GetPreArrivalList(uint16_t _pu16List,uint8_t *_pcLanguageList,uint16_t *_pu16ListNum);
+void Dias_BroadCast_Rule_GetArrivedList(uint16_t _pu16List,uint8_t *_pcLanguageList,uint16_t *_pu16ListNum);
+void Dias_BroadCast_Rule_GetUrgentList(uint16_t _pu16List,uint8_t *_pcLanguageList,uint16_t *_pu16ListNum);
+#endif

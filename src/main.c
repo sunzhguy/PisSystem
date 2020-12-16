@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-03 14:18:56
+ * @LastEditTime: 2020-12-15 14:33:36
  */ 
 //__attribute__ ((unused)) #define UNUSED(x) (void)(x)
 
@@ -24,6 +24,7 @@
 #include "nanomsg/nn.h"
 #include "udp_service.h"
 #include "main.h"
+#include "manage/sys_service.h"
 
 
 
@@ -31,11 +32,11 @@ void Main_TimerOut_Handle(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,  void *_
 {
 	T_MAINSERVER *ptMainServer = (T_MAINSERVER *)_pvArg;
     T_EVENT_CTL * ptEventCtl = (T_EVENT_CTL * )_pvEventCtl;
-    zlog_debug(ptMainServer->ptZlogCategory,"1 second Timerout:%ld tm:%ld,%p\r\n",_ptEventTimer->u64Index,_ptEventTimer->u64Expire,ptEventCtl);
+    //zlog_debug(ptMainServer->ptZlogCategory,"1 second Timerout:%ld tm:%ld,%p\r\n",_ptEventTimer->u64Index,_ptEventTimer->u64Expire,ptEventCtl);
 	EVIO_EventTimer_Init(_ptEventTimer,1000,Main_TimerOut_Handle,ptMainServer);
     EVIO_EventTimer_Start(ptEventCtl,_ptEventTimer);
 
-	#if 1
+	#if 0
 	char *str = "Main Timer Timout SEND OK";
     uint8_t *dat = nn_allocmsg(100, 0);
 	//zlog_debug(ptMainServer->ptZlogCategory,"dat===%p,%p\n",dat,ptMainServer);
@@ -181,7 +182,7 @@ int main( void )
 	 int ret =0;
 	 T_MAINSERVER tmainServer;
 	 pthread_t tThreadUDP;
-
+     pthread_t tThreadTrainSys;
 	 ret =Main_Zlog_Init(&tmainServer);
 	 if(-1 == ret)
 	 {
@@ -207,7 +208,16 @@ int main( void )
 		return -1; 
 	 }
 
-	 while (tmainServer.iThread_bStartCnt < 1) {
+	 ret =pthread_create(&tThreadTrainSys,NULL,TrainSystemService_ThreadHandle,&tmainServer);
+
+	 if(-1 == ret)
+	 {
+		zlog_error(tmainServer.ptZlogCategory,"SYS service thread pthread create error\n");
+		Main_Loop_Del(&tmainServer);
+		return -1; 
+	 }
+	 
+	 while (tmainServer.iThread_bStartCnt < 3) {
         pthread_mutex_lock(&tmainServer.tThread_StartMutex);
         pthread_cond_wait(&tmainServer.tThread_StartCond, &tmainServer.tThread_StartMutex);
         pthread_mutex_unlock(&tmainServer.tThread_StartMutex);

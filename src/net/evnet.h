@@ -4,15 +4,15 @@
  * @Author: sunzhguy
  * @Date: 2020-07-17 09:53:04
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 11:39:28
+ * @LastEditTime: 2020-12-14 15:58:16
  */ 
 #ifndef _EVNET_H_
 #define _EVNET_H_
 
 #include <stdint.h>
 #include "../evio/evio.h"
-
-
+#include <sys/socket.h>
+#include <netinet/in.h>
 #define MAXUDPCNT           4          //UDP通信个数
 
 #define MAX_TCPSERCNT       1           //TCP SERVER 通信个数
@@ -44,6 +44,13 @@ typedef enum  {
     EV_TCP_NORMAL,
 }E_EVENT_TCP_TYPE;
 
+typedef enum{
+   E_UDP,
+   E_BROADCAST,
+   E_MULTIBROADCAST,
+
+}E_UDP_TYPE;
+
 typedef struct  {
 	char acReadBuffer[EV_BUFFER_SIZE];
 	int32_t iReadLen;
@@ -69,6 +76,8 @@ typedef void (*PF_EVENT_UDP_CALLBACK)(T_EVENT_CTL *, T_EVENT_UDP *, void *);
 
 struct _T_EVENT_UDP{
 	int32_t iSocketFd;
+	E_UDP_TYPE  eUdpType;
+	struct sockaddr_in tRemote_addr;
 	T_EVNET_BUFFER *ptEvNetBuffer;
 	T_EVENT_FD *ptEventFd;
 	PF_EVENT_UDP_CALLBACK pfEventCallBack;//接收数据回调控制
@@ -83,7 +92,7 @@ void ev_tcp_set(ev_ctl_t *evctl, ev_tcp_t *evtcp, ev_tcp_cb_t cb, void *arg);
 int ev_tcp_msg(ev_ctl_t *evctl, ev_tcp_t *evtcp, const char *data, int32_t size);
 #endif
 
-T_EVENT_UDP* EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _Port, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg);
-
+T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _LocalPort,uint16_t _RemotePort, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg);
+void  EV_NET_EventUDP_WriteData(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP ,const char *data, int32_t size);
 #endif
 
