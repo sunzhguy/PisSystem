@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 14:47:26
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-14 14:37:27
+ * @LastEditTime: 2020-12-16 09:48:55
  */
 
 //超时次数
@@ -98,6 +98,7 @@ void DEV_STATUS_InitDevValid(uint8_t _u8DevType)
 	{
 		u8DevMaxCnt=atoi((const char*)acValstr);
 	}	
+	printf("u8DevMaxCnt:%d---------Name:%s--\n",u8DevMaxCnt,acDevTypeEnNameTemp,gatDevStatusList[i].acDevType_EngName);
 	for(u8iDev = 0;u8iDev <u8DevMaxCnt; u8iDev++)
 	{
 		u8TempDevId=u8iDev+1;
@@ -116,6 +117,7 @@ void DEV_STATUS_InitDevValid(uint8_t _u8DevType)
 		{
 			u8DevTempStaus = atoi((const char*)acValstr);
 		}		
+		printf("+++++++++++++++++++++++u8DevValidFlag:%d\n",u8DevValidFlag);
 		//设备有效,添加到设备状态表
 		if(u8DevValidFlag)
 		{

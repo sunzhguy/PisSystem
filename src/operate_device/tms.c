@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 16:59:32
+ * @LastEditTime: 2020-12-16 09:52:09
  */
 
 #include <stdio.h>
@@ -272,11 +272,11 @@ static void _TMS_PreBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackData
 	{
 		return ;
 	}
-	printf("++++++++++++++++++++++++++++++++++++++==%d\r\n",ptTmsRecvPacket->u8PreBrdCastFlag);
+	//printf("++++++++++++++++++++++++++++++++++++++==%d\r\n",ptTmsRecvPacket->u8PreBrdCastFlag);
 	//预到站触发
 	if(ptTmsRecvPacket->u8PreBrdCastFlag)
 	{
-		printf("++++++++++++++++++++++++++++++++++++++\r\n");
+		printf("+++++++++++PPPPPPPPPPPPPPPPPPPPPPPPP+++++++++++++\r\n");
 		//预到站广播
 		//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
 		PISC_LOCAL_SetPreFlag(1);

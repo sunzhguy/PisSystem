@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-03 15:17:09
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 17:11:40
+ * @LastEditTime: 2020-12-16 09:52:52
  */
 
 #include <stdint.h>
@@ -46,7 +46,7 @@ static void _PisDataProc_GetPreBackUpProcessData(uint8_t _u8DevType,uint8_t _u8D
 	{
 		if(_u8DevType == ptDevPackBackUpdata->u8DevType && _u8DevId == ptDevPackBackUpdata->u8DevId)
 		{
-			printf("$$$$$$$$$$$$$DevType:%d DevId:%d\n",ptDevPackBackUpdata->u8DevType,ptDevPackBackUpdata->u8DevId);
+			//printf("$$$$$$$$$$$$$DevType:%d DevId:%d\n",ptDevPackBackUpdata->u8DevType,ptDevPackBackUpdata->u8DevId);
 			*_p16Len = ptDevPackBackUpdata->u16DatLen;
  			memcpy(pucBuf,(uint8_t *)&ptDevPackBackUpdata->acDataBackUp[0],ptDevPackBackUpdata->u16DatLen);
 			break;
@@ -72,6 +72,7 @@ void PisDataProc_MatrixInit_ProcessData(uint8_t _u8DevType, uint8_t _u8DevId)
 		gatDevPackBackUpDataTable[i].u16DatLen=80;
 		i++;	
 	}
+	printf("PisDataProc_MatrixInit_ProcessData++++++++++++++++++++%d:%d\n",_u8DevType,_u8DevId);
 	memset((uint8_t *)gatDevPackBackUpDataTable[i].acDataBackUp, 0,sizeof(T_DEV_PACK_BACKUPDATA));
 	
 }
@@ -96,9 +97,12 @@ void PisDataProc_Matrix_CompareUpdateProcessData(T_PIS_PACKDATAFRAME *_ptPiscRec
 
 	while(ptDevPackBackUpData->u8DevId)
 	{		
+		//printf("compath id:==============DevType:=%d<->%d-------DevID:%d<-->%d\n",tPisPackDataFrame.u8SrcDevType, ptDevPackBackUpData->u8DevType,
+		//																		tPisPackDataFrame.u8SrcDevId,ptDevPackBackUpData->u8DevId);
 		if(tPisPackDataFrame.u8SrcDevType == ptDevPackBackUpData->u8DevType && tPisPackDataFrame.u8SrcDevId == ptDevPackBackUpData->u8DevId)
 		{	
 			ptDevPackBackUpData->u16DatLen=_ptPiscReciveDataFrame->u16DatLen+6;
+			// printf("+++++++++++Enter.........id:%d\n",ptDevPackBackUpData->u8DevId);
 			memcpy((uint8_t *)ptDevPackBackUpData->acDataBackUp,(uint8_t *)&tPisPackDataFrame,_ptPiscReciveDataFrame->u16DatLen+6);
 			break;
 		}
@@ -170,8 +174,8 @@ void PisDataProc_Matrix_Dispatch(uint8_t _u8DevType, uint8_t _u8DevId,uint16_t  
 											if(((aucRecvPackDataFrameTempBuf[ptDevBusMsgDataProcTb->u8Byte_Index] ^  (gucTempBufBackup[_u8MatixIndexlen+ptDevBusMsgDataProcTb->u8Byte_Index]))\
 												& (ptDevBusMsgDataProcTb->u16BitNum << ptDevBusMsgDataProcTb->u8Bit_Index)) != 0)  
 											{	
-												if(_u8DevType == 3)
-												printf("+++++++++++++++_u8DevType:%d--->byteIndex:%d\n",_u8DevType,ptDevBusMsgDataProcTb->u8Byte_Index);
+												//if(_u8DevType == 3)
+												//printf("+++++++++++++++_u8DevType:%d--->byteIndex:%d\n",_u8DevType,ptDevBusMsgDataProcTb->u8Byte_Index);
 												ptDevBusMsgDataProcTb->pfMsgHandleCallBack((T_PIS_PACKDATAFRAME *)_pucBuf);
 											}
 										}

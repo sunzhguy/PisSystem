@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 15:19:43
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-07 17:20:55
+ * @LastEditTime: 2020-12-16 09:48:40
  */
 
 #include <stdio.h>
@@ -158,12 +158,12 @@ static int _INI_FILE_LocalKeyValue(FILE* _ptFp, const char* _pcKeyName,
             
         if (strcmp (pcCurrent, _pcKeyName) == 0) {
             if (_pcValue)
-                strncpy (_pcValue, _pcValue, iValueLen);
+                strncpy (_pcValue, pcValue, iValueLen);
 
             return 0; 
         }
         else if (_ptFpBak && *pcCurrent != '\0')
-            fprintf (_ptFpBak, "%s=%s\n", pcCurrent, _pcValue);
+            fprintf (_ptFpBak, "%s=%s\n", pcCurrent, pcValue);
     }
 
     return -1;                        
