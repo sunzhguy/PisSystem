@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:56
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 10:58:33
+ * @LastEditTime: 2020-12-21 09:32:57
  */
 
 #ifndef PISC_TMS_H
@@ -88,5 +88,5 @@ typedef struct
 void  TMS_Init(void );
 
 void TMS_NanoMsgToBroadCast();
-void TMS_SendNanoMsgToBroadCast(uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType);
+void TMS_SendNanoMsgToBroadCast(uint8_t _u8OpType,uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType);
 #endif

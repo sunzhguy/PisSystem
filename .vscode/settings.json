@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "dias_broadcast_rule_h": "cpp"
-    }
+    },
+    "git.ignoreLimitWarning": true
 }

@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 11:11:38
+ * @LastEditTime: 2020-12-21 09:38:02
  */
 
 #include <stdio.h>
@@ -237,14 +237,19 @@ static void _TMS_EmergencyBroadCastTrigger(T_PIS_PACKDATAFRAME *_ptPisRecvPackDa
 	if(!ptTmsRecvPacket->u8UrgentTrigFlag)
 	{
 		if(BROADCAST_URGENT == BROADCAST_GetBroadCastType())
-		BROADCAST_StopProcess(BROADCAST_URGENT);
+		{
+			//BROADCAST_StopProcess(BROADCAST_URGENT);
+			TMS_SendNanoMsgToBroadCast(BROADCAST_STOP,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+		}
+		
 	}
 	if(ptTmsRecvPacket->u8UrgentTrigFlag)
 	{
 		if(u16UrgentCodeId)
 		{
 			BROADCAST_SetUrgentCode(u16UrgentCodeId);
-			BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+			TMS_SendNanoMsgToBroadCast(BROADCAST_PLAY,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+			//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
 		}
 	}
 
@@ -262,14 +267,15 @@ static void _TMS_TimeSet (T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFrame)
 
 }
 
-void TMS_SendNanoMsgToBroadCast(uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType)
+void TMS_SendNanoMsgToBroadCast(uint8_t _u8OpType,uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType)
 {
 	uint8_t *dat = nn_allocmsg(5, 0);
     if (NULL != dat) {
-         dat[0] = BROADCAST_PLAY;
-		 dat[1] = _u8DevType;
-		 dat[2] = _u8DevId;
-		 dat[3] = _u8BdType;
+		 dat[0] = MSG_UDP_TMS2BDCAST;
+         dat[1] = _u8OpType;
+		 dat[2] = _u8DevType;
+		 dat[3] = _u8DevId;
+		 dat[4] = _u8BdType;
 		 printf("++++++++111++++++++\r\n");
 	 	 UDP_SERVICE_SendNanoMsg(dat);
 	}
@@ -294,7 +300,7 @@ static void _TMS_PreBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackData
 		printf("+++++++++++PPPPPPPPPPPPPPPPPPPPPPPPP+++++++++++++\r\n");
 		//预到站广播
 		//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
-		TMS_SendNanoMsgToBroadCast(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
+		TMS_SendNanoMsgToBroadCast(BROADCAST_PLAY,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
 		PISC_LOCAL_SetPreFlag(1);
 		PISC_LOCAL_SetArrFlag(0);
 
@@ -338,7 +344,8 @@ static void _TMS_ArrBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackData
 
 	if(ptTmsRecvPacket->u8ArrBrdcastFlag)
 	{
-		BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_ARRIVE);
+		//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_ARRIVE);
+		TMS_SendNanoMsgToBroadCast(BROADCAST_PLAY,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_ARRIVE);
 		PISC_LOCAL_SetPreFlag(0);
 		PISC_LOCAL_SetArrFlag(1);	
 	}
@@ -357,12 +364,14 @@ static void _TMS_ArrBroadCast_TriggerSet(T_PIS_PACKDATAFRAME *_ptPisRecvPackData
 	{
 		if(BROADCAST_PRE == BROADCAST_GetBroadCastType())
 		{
-			BROADCAST_StopProcess(BROADCAST_PRE);
+			//BROADCAST_StopProcess(BROADCAST_PRE);
+			TMS_SendNanoMsgToBroadCast(BROADCAST_STOP,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_PRE);
 		}
 
 		if(BROADCAST_ARRIVE == BROADCAST_GetBroadCastType())
 		{
-			BROADCAST_StopProcess(BROADCAST_ARRIVE);
+			//BROADCAST_StopProcess(BROADCAST_ARRIVE);
+			TMS_SendNanoMsgToBroadCast(BROADCAST_STOP,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_ARRIVE);
 		}
 	}
 	printf("_TMS_StopBroadCast_TriggerSet\n");
@@ -381,11 +390,13 @@ static void _TMS_CycleBroadCastTrigger(T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFr
 	if(ptTmsRecvPacket->u16CycleBrdCastFlag)
 	{	
 		//pisc_set_urgent_trigger(urgent_no); //默认第一段紧急广播
-		BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+		//BROADCAST_Process(_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+		TMS_SendNanoMsgToBroadCast(BROADCAST_PLAY,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
 	}
 	else
 	{
-		BROADCAST_StopProcess(BROADCAST_URGENT);	
+		TMS_SendNanoMsgToBroadCast(BROADCAST_STOP,_ptPisRecvPackDataFrame->u8SrcDevType,_ptPisRecvPackDataFrame->u8SrcDevId,BROADCAST_URGENT);
+		//BROADCAST_StopProcess(BROADCAST_URGENT);	
 	}	
 
 	printf("_TMS_CycleBroadCastTrigger\n");

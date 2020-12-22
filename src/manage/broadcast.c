@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 11:59:19
+ * @LastEditTime: 2020-12-22 09:22:24
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -207,10 +207,10 @@ void   BROADCAST_Process(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8Type
 
     uint8_t  i=0;
 	uint8_t  u8BraodCastPriority=0;
-	uint8_t  acPlayFilePathList[FILE_LIST_NUM_MAX][FILE_NAME_LENGTH_MAX]={{0}};
+	uint8_t  acDecodeFilePathList[FILE_LIST_NUM_MAX][FILE_NAME_LENGTH_MAX]={{0}};    
 	uint16_t au16PlayList[FILE_LIST_NUM_MAX]={0};
 	uint8_t  acLanguageList[FILE_LIST_NUM_MAX]={0};
-	uint16_t playListNum = 0;
+	uint16_t u16DecodeListNum = 0;
 	
 	T_BROADCASTPROC_LIST const *ptBroadCastProcessList = _gtBroadCastProcessList;	
 	//当前广播优先级
@@ -223,7 +223,7 @@ void   BROADCAST_Process(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8Type
 		printf("ptBroadCastProcessList->u8BdType:%d--->_u8TypeBroadCast:%d\n",ptBroadCastProcessList->u8BdType,_u8TypeBroadCast);
 		printf("\r\n");
 		if(ptBroadCastProcessList->u8BdOpDevType      == _u8OpDevType
-			&& ptBroadCastProcessList->u8BdOpDevId  == _u8OpDevId
+			&& ptBroadCastProcessList->u8BdOpDevId    == _u8OpDevId
 			&& ptBroadCastProcessList->u8BdType       == _u8TypeBroadCast)
 		{
 			printf("ptBroadCastProcessList->u8BdPriority: %d--->%d\r\n",ptBroadCastProcessList->u8BdPriority,u8BraodCastPriority);
@@ -244,22 +244,22 @@ void   BROADCAST_Process(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8Type
 				if(ptBroadCastProcessList->pfGetBroadCastRuleList)
 				{
 					//获取播放列表，包括音频和客室屏拼接显示
-					printf("pfGetBroadCastRuleList:%d\n",playListNum);
-					ptBroadCastProcessList->pfGetBroadCastRuleList(au16PlayList,acLanguageList,&playListNum);
+					printf("pfGetBroadCastRuleList:%d\n",u16DecodeListNum);
+					ptBroadCastProcessList->pfGetBroadCastRuleList(au16PlayList,acLanguageList,&u16DecodeListNum);
                     
 					if(MP3_DECODER == ptBroadCastProcessList->u8MP3DecodeFlag)
 					{
 						printf("list->mp3_file_path: %s\r\n",ptBroadCastProcessList->acMP3FilePath);
-						printf("****play_list_num: %d\r\n",playListNum);
+						printf("****play_list_num: %d\r\n",u16DecodeListNum);
 
 					
-						for(i = 0; i < playListNum; i++)
+						for(i = 0; i < u16DecodeListNum; i++)
 						{
-							sprintf((char *)acPlayFilePathList[i],"%s/%d/%03d.mp3",ptBroadCastProcessList->acMP3FilePath,acLanguageList[i],au16PlayList[i]);
-							printf("play_file_path_list[%d]: %s\r\n",i,acPlayFilePathList[i]);
+							sprintf((char *)acDecodeFilePathList[i],"%s/%d/%03d.mp3",ptBroadCastProcessList->acMP3FilePath,acLanguageList[i],au16PlayList[i]);
+							printf("play_file_path_list[%d]: %s\r\n",i,acDecodeFilePathList[i]);
 						}	
 
-						
+						MP3_Decoder_SetDecodeList(CHANNEL_LEFT,(uint8_t*)acDecodeFilePathList,u16DecodeListNum*2);
 						//播放音频
 						//mp3_decoder_play_list(CHANNEL_LEFT,(uint8 *)play_file_path_list,play_list_num*2);
 						printf("begin sleep 1s\r\n");
@@ -268,6 +268,7 @@ void   BROADCAST_Process(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8Type
 						printf("sleep 1s\r\n");
 						//启动播放线程
 						//mp3_decoder_set_run_flag(1);	
+						MP3_Decoder_Set_RunFlag(DECODING);
 						
 						//亮mp3灯
 						//led_onoff(MP3_LED_BIT,1);	
@@ -299,7 +300,7 @@ void    BROADCAST_StopProcess(uint8_t _u8TypeBroadCast )
           {
               if(ptBroadCastProcessList->u8MP3DecodeFlag)
               {
-                  MP3_Decoder_StopPlay(CHANNEL_LEFT);
+                  MP3_Decoder_Stop(CHANNEL_LEFT);
               }
               if(ptBroadCastProcessList->u8CycleFlag)
               {
@@ -586,7 +587,7 @@ static uint8_t  _BROADCAST_Get_MP3DecodeFlag(void)
 }
 
 
-T_BROADCAST_SERVICE   tBroadCastService;
+T_BROADCAST_SERVICE   gtBroadCastService;
 void    BROADCAST_TimerOut_Process(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,  void *_pvArg)
 {
    
@@ -597,18 +598,23 @@ void    BROADCAST_TimerOut_Process(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,
 
 	if(PISC_LOCAL_GetMasterFlag())//主
 	{
-		if(_BROADCAST_Get_MP3DecodeFlag())//解码
+		if(_BROADCAST_Get_MP3DecodeFlag())//解码播放MP3广播
 		{
-			printf("BD:+++++++++MP3Decode.....\n");
-			if(BROADCAST_GetBroadCastCycleFlag())//循环播放标志
+			printf("BD:+++++++++MP3DecodeBroadcast....%x.\n",BROADCAST_GetBroadCastType());
+
+			if(MP3_Decoder_Get_IsDecoding() ==NODECODING)//
 			{
-				BROADCAST_Process(BROADCAST_GetBroadCastOperateDevType(),BROADCAST_GetBroadCastOperateDevId(),BROADCAST_GetBroadCastType());
-			}else
-			{
-				printf("BD:+++++++++NONE CYCLE........\n");
-				if(BROADCAST_NONE != BROADCAST_GetBroadCastType())
+				//解码完成
+				if(BROADCAST_GetBroadCastCycleFlag())//循环播放标志
 				{
-					BROADCAST_StopProcess(BROADCAST_GetBroadCastType());
+					BROADCAST_Process(BROADCAST_GetBroadCastOperateDevType(),BROADCAST_GetBroadCastOperateDevId(),BROADCAST_GetBroadCastType());
+				}else   //解码完成 就把广播设置为空，此处需要加入一个判断就是解码缓冲区 发送为空才去设置为空或者发送解码缓冲区放在解码里面进行同步操作
+				{
+					printf("BD:+++++++++NONE CYCLE.......%x.\n", BROADCAST_GetBroadCastType());
+					if(BROADCAST_NONE != BROADCAST_GetBroadCastType())
+					{
+						BROADCAST_StopProcess(BROADCAST_GetBroadCastType());
+					}
 				}
 			}
 			
@@ -630,6 +636,18 @@ void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFD
 	if (-1 != bytes) {
 			zlog_info(ptMainServer->ptZlogCategory,"UDP---------------->Broadcast++%d\n",bytes);
 
+		if(dat[0] == MSG_UDP_TMS2BDCAST)
+		{
+			if(dat[1] == BROADCAST_PLAY)
+			{
+				BROADCAST_Process(dat[2],dat[3],dat[4]);
+			}else if(dat[1] == BROADCAST_STOP)
+			{
+				 //[1]: _u8OpType;[2] :_u8DevType;[3] :_u8DevId;[4] : _u8BdType;
+				 printf("STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\r\n");
+				BROADCAST_StopProcess(dat[4]);
+			}
+		}
 			
 			nn_freemsg(dat);
 	}
@@ -698,23 +716,23 @@ static int32_t _BROADCAST_NanomsgSocket_Init(T_BROADCAST_SERVICE  *_ptBroadCastS
 void  *BROADCAST_Service_ThreadHandle(void *_pvArg)
 {
    T_MAINSERVER *ptMainServer     = (T_MAINSERVER *) _pvArg;
-   tBroadCastService.ptEventCtl   = EVIO_EventCtl_Create();  //创建一个事件控制器
-   tBroadCastService.ptMainServer = ptMainServer;
+   gtBroadCastService.ptEventCtl   = EVIO_EventCtl_Create();  //创建一个事件控制器
+   gtBroadCastService.ptMainServer = ptMainServer;
 
-   if(NULL == tBroadCastService.ptEventCtl)
+   if(NULL == gtBroadCastService.ptEventCtl)
 	 {
 		 zlog_error(ptMainServer->ptZlogCategory,"+++BroadCast Service  EventCtl Failed\n");
 		 return NULL;
 	 }
 	zlog_info(ptMainServer->ptZlogCategory,"BROADCAST Service Thread Creator Success!!!\n");
-    if(_BROADCAST_NanomsgSocket_Init(&tBroadCastService) != 0)
+    if(_BROADCAST_NanomsgSocket_Init(&gtBroadCastService) != 0)
 	{
-		EVIO_EventCtl_Free(tBroadCastService.ptEventCtl);
+		EVIO_EventCtl_Free(gtBroadCastService.ptEventCtl);
 		return NULL;
 	}
 	
-	EVIO_EventTimer_Init(&tBroadCastService.tEventTimer,1000,BROADCAST_TimerOut_Process,&tBroadCastService);
-	EVIO_EventTimer_Start(tBroadCastService.ptEventCtl,&tBroadCastService.tEventTimer);
+	EVIO_EventTimer_Init(&gtBroadCastService.tEventTimer,1000,BROADCAST_TimerOut_Process,&gtBroadCastService);
+	EVIO_EventTimer_Start(gtBroadCastService.ptEventCtl,&gtBroadCastService.tEventTimer);
 
     pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
 	++ptMainServer->iThread_bStartCnt;
@@ -723,8 +741,8 @@ void  *BROADCAST_Service_ThreadHandle(void *_pvArg)
 	while(1)
      { 
 
-        EVIO_EventCtlLoop_Start(tBroadCastService.ptEventCtl);
+        EVIO_EventCtlLoop_Start(gtBroadCastService.ptEventCtl);
      }
-    EVIO_EventCtl_Free(tBroadCastService.ptEventCtl);
+    EVIO_EventCtl_Free(gtBroadCastService.ptEventCtl);
     return NULL;
 }

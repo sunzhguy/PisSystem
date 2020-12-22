@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-07 15:35:18
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 14:17:12
+ * @LastEditTime: 2020-12-21 16:02:32
  */
 #include "sys_service.h"
 #include "evio/evio.h"
@@ -16,6 +16,7 @@
 #include "train_manage.h"
 #include "broadcast.h"
 #include <pthread.h>
+#include "mp3_decoder.h"
 
 
 
@@ -24,6 +25,7 @@ void *TrainSystemService_ThreadHandle(void *_pvArg)
 {
     int ret = 0;
     pthread_t tThreadBroadCast;
+    pthread_t tThreadMP3Decoder;
     T_MAINSERVER *ptMainServer = (T_MAINSERVER *) _pvArg;
     tTrainSystem.ptEventCtl    =  EVIO_EventCtl_Create();  //创建一个事件控制器 creator event contoler
     tTrainSystem.ptMainServer  = ptMainServer;
@@ -54,6 +56,13 @@ void *TrainSystemService_ThreadHandle(void *_pvArg)
 
     //启动广播线程
     ret =pthread_create(&tThreadBroadCast,NULL,BROADCAST_Service_ThreadHandle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
+	 }
+
+    //启动MP3解码线程
+    ret =pthread_create(&tThreadMP3Decoder,NULL,MP3_Decoder_Service_ThreadHandle,ptMainServer);
 	 if(-1 == ret)
 	 {
 		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");

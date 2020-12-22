@@ -1,7 +1,9 @@
 #include ./build.cfg
 CFLAGS = -O2 -Wall -g
-LDFLAGS=-L/home/cftc/sunzhguy/NXP_IM6ULL/PIS_system/ffmpeg_lib/lib
-LIB_PATH+=-L/home/cftc/sunzhguy/NXP_IM6ULL/rootfs/tools_porting/libasound/alsa-lib/lib
+LIB_PATH = -L/home/cftc/sunzhguy/NXP_IM6ULL/PIS_system/ffmpeg_lib/lib
+LIB_PATH += -L/home/cftc/sunzhguy/NXP_IM6ULL/rootfs/tools_porting/libasound/alsa-lib/lib
+
+LDFLAGS += $(LIB_PATH)
 
 
 CFLAGS += -I ./src
@@ -52,9 +54,10 @@ CFLAGS += -DNN_USE_EVENTFD=1
 CFLAGS += -DNN_HAVE_MSG_CONTROL=1
 
 
-CFLAGS += -I/home/cftc/sunzhguy/NXP_IM6ULL/PIS_system/ffmpeg_lib/include
+INC_PATH += -I/home/cftc/sunzhguy/NXP_IM6ULL/PIS_system/ffmpeg_lib/include
 INC_PATH += -I/home/cftc/sunzhguy/NXP_IM6ULL/rootfs/tools_porting/libasound/alsa-lib/include/
 
+CFLAGS += $(INC_PATH)
 TOP_DIR = .
 INSTALL_DIR = /bin
 PROJECT = Pisc.axf
@@ -253,7 +256,7 @@ all:$(TOP_DIR)$(INSTALL_DIR)/$(PROJECT)
 $(TOP_DIR)$(INSTALL_DIR)/%o:%c
 
 $(TOP_DIR)$(INSTALL_DIR)/$(PROJECT):$(OBJS) $(HEADERS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)  -lpthread  
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)   -lavformat -lavutil -lswscale -lswresample -lavcodec -lpthread  -lasound
 
 
 $(TOP_DIR)$(INSTALL_DIR)/%.o:%.c $(HEADERS)

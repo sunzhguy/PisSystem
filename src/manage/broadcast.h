@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:20
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 11:06:08
+ * @LastEditTime: 2020-12-21 08:57:42
  */
 #ifndef BROADCAST_H
 #define BROADCAST_H
@@ -24,7 +24,7 @@
 #define BROADCAST_NONE 	       0x10//无报站
 
 
-
+#define MSG_UDP_TMS2BDCAST    0X00
 #define BROADCAST_PLAY        0x01
 #define BROADCAST_STOP        0x00
 
