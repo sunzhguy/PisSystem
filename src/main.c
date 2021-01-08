@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 14:33:36
+ * @LastEditTime: 2021-01-07 11:56:51
  */ 
 //__attribute__ ((unused)) #define UNUSED(x) (void)(x)
 
@@ -25,6 +25,11 @@
 #include "udp_service.h"
 #include "main.h"
 #include "manage/sys_service.h"
+
+#include "driver/led.h"
+
+
+
 
 
 
@@ -184,11 +189,12 @@ int main( void )
 	 pthread_t tThreadUDP;
      pthread_t tThreadTrainSys;
 	 ret =Main_Zlog_Init(&tmainServer);
+	 
 	 if(-1 == ret)
 	 {
 		 return -1;
 	 }
-	 
+	 LED_Init();
 	 ret = Main_Loop_Init(&tmainServer);
 	 if(-1 == ret)
 	 {
@@ -199,6 +205,16 @@ int main( void )
      tmainServer.iThread_bStartCnt = 0;
 	 pthread_mutex_init(&tmainServer.tThread_StartMutex, NULL);
 	 pthread_cond_init(&tmainServer.tThread_StartCond, NULL);
+	 
+	 ret =pthread_create(&tThreadTrainSys,NULL,TrainSystemService_ThreadHandle,&tmainServer);
+
+	 if(-1 == ret)
+	 {
+		zlog_error(tmainServer.ptZlogCategory,"TrainSystem thread pthread create error\n");
+		Main_Loop_Del(&tmainServer);
+		return -1; 
+	 }
+	 
 	 ret =pthread_create(&tThreadUDP,NULL,UDP_SERVICE_Thread_Handle,&tmainServer);
 
 	 if(-1 == ret)
@@ -208,15 +224,7 @@ int main( void )
 		return -1; 
 	 }
 
-	 ret =pthread_create(&tThreadTrainSys,NULL,TrainSystemService_ThreadHandle,&tmainServer);
 
-	 if(-1 == ret)
-	 {
-		zlog_error(tmainServer.ptZlogCategory,"SYS service thread pthread create error\n");
-		Main_Loop_Del(&tmainServer);
-		return -1; 
-	 }
-	 
 	 while (tmainServer.iThread_bStartCnt < 3) {
         pthread_mutex_lock(&tmainServer.tThread_StartMutex);
         pthread_cond_wait(&tmainServer.tThread_StartCond, &tmainServer.tThread_StartMutex);

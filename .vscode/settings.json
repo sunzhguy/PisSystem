@@ -1,6 +1,12 @@
 {
     "files.associations": {
-        "dias_broadcast_rule_h": "cpp"
+        "dias_broadcast_rule_h": "cpp",
+        "system_error": "c",
+        "array": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c"
     },
     "git.ignoreLimitWarning": true
 }

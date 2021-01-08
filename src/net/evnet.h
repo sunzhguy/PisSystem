@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-17 09:53:04
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-14 15:58:16
+ * @LastEditTime: 2021-01-08 14:41:30
  */ 
 #ifndef _EVNET_H_
 #define _EVNET_H_
@@ -92,7 +92,8 @@ void ev_tcp_set(ev_ctl_t *evctl, ev_tcp_t *evtcp, ev_tcp_cb_t cb, void *arg);
 int ev_tcp_msg(ev_ctl_t *evctl, ev_tcp_t *evtcp, const char *data, int32_t size);
 #endif
 
-T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _LocalPort,uint16_t _RemotePort, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg);
-void  EV_NET_EventUDP_WriteData(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP ,const char *data, int32_t size);
+T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _LocalPort,char * _pcRemoteAddr,uint16_t _RemotePort, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg);
+void         EV_NET_EventUDP_Close(T_EVENT_CTL *_ptEventCtl,T_EVENT_UDP * _ptEventUDP);
+void         EV_NET_EventUDP_WriteData(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP ,const char *data, int32_t size);
 #endif
 

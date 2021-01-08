@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-22 09:22:24
+ * @LastEditTime: 2021-01-08 17:26:52
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -24,7 +24,8 @@
 #include "driver/soundcard.h"
 #include "../main.h"
 #include "../teminal_device/pisc_local.h"
-
+#include "../lib/pis_pack.h"
+#include "../port_layer/audio_port_bd.h"
 
 #define MP3_DECODER	(1)      //需要进行MP3解码
 #define NO_MP3_DECODER	(0)	//不需要进行mp3解码
@@ -565,7 +566,7 @@ static void _BROADCAST_PreArrivalStop(void)
 }
 static void _BROADCAST_ArrivalStop(void)
 {
- printf("%s:%s\n",__FILE__,__func__);
+ printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++%s:%s\n",__FILE__,__func__);
 }
 static void _BROADCAST_MediaStop(void)
 {
@@ -600,7 +601,7 @@ void    BROADCAST_TimerOut_Process(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,
 	{
 		if(_BROADCAST_Get_MP3DecodeFlag())//解码播放MP3广播
 		{
-			printf("BD:+++++++++MP3DecodeBroadcast....%x.\n",BROADCAST_GetBroadCastType());
+			printf("BD:+++++++++MP3DecodeBroadcast...BDType.%x.\n",BROADCAST_GetBroadCastType());
 
 			if(MP3_Decoder_Get_IsDecoding() ==NODECODING)//
 			{
@@ -745,4 +746,25 @@ void  *BROADCAST_Service_ThreadHandle(void *_pvArg)
      }
     EVIO_EventCtl_Free(gtBroadCastService.ptEventCtl);
     return NULL;
+}
+
+
+void    BROADCAST_AudioSend(uint8_t *_pcBuffer,uint16_t _u16Len)
+{
+    uint8_t acSendBuffer[PIS_DATA_MAX_SIZE];
+	T_AUDIOBD tAudioBroadCast;
+	uint16_t u16SendLen = 0;
+	uint8_t u8OpDevId  = BROADCAST_GetBroadCastOperateDevId();
+	uint8_t u8OpDevType = BROADCAST_GetBroadCastOperateDevType();
+	tAudioBroadCast.u8BdType     = BROADCAST_GetBroadCastType();
+	tAudioBroadCast.u8BdPriority = BROADCAST_GetPriority(u8OpDevType,u8OpDevId,tAudioBroadCast.u8BdType);
+	memcpy((uint8_t*)&tAudioBroadCast.acAudioBuf,_pcBuffer,_u16Len);
+
+	//封包
+	PIS_PACK_DataPacket(0,0xff,0xff,BROADCAST_AUDIO_REMOTE_IP_HEX,
+                        0x001,DEV_TYPE_PISC,PISC_LOCAL_GetDevId(),PISC_LOCAL_GetDevIp(),
+                        AUDIO_SEND_CMD,(uint8_t*)&tAudioBroadCast,sizeof(T_AUDIOBD),acSendBuffer,&u16SendLen);
+
+
+	AudioPortBD_SendData(acSendBuffer,u16SendLen);
 }

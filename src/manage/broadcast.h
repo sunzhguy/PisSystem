@@ -4,12 +4,13 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:20
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-21 08:57:42
+ * @LastEditTime: 2021-01-08 17:23:37
  */
 #ifndef BROADCAST_H
 #define BROADCAST_H
 #include "../include/general.h"
 #include "../main.h"
+#include "../include/commnanomsg.h"
 //广播类型
 #define BROADCAST_PRE	 	   0x01//预报站
 #define BROADCAST_ARRIVE       0x02//到站报站
@@ -24,7 +25,7 @@
 #define BROADCAST_NONE 	       0x10//无报站
 
 
-#define MSG_UDP_TMS2BDCAST    0X00
+
 #define BROADCAST_PLAY        0x01
 #define BROADCAST_STOP        0x00
 
@@ -59,6 +60,8 @@ void    BROADCAST_SetBroadCastCycleFlag(uint8_t _u8CycleFlag);
 uint8_t BROADCAST_GetBroadCastCycleFlag(void);
 
 
+void    BROADCAST_AudioSend(uint8_t *_pcBuffer,uint16_t _u16Len);
+
 void    BROADCAST_SendPriority(void);
 void    BROADCAST_SendVolume(void);
 uint8_t BROADCAST_GetPriority(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t _u8TypeBroadCast);
@@ -81,6 +84,24 @@ typedef struct {
 void  *BROADCAST_Service_ThreadHandle(void *_pvArg);
 
 
+
+
+
+//缓冲区大小
+#define AUDIO_BUF_SIZE	1024
+
+//发送音频命令字
+#define AUDIO_SEND_CMD			0x0004
+
+
+
+//控制命令
+typedef struct
+{
+	uint8_t u8BdType;
+	uint8_t u8BdPriority;
+	uint8_t acAudioBuf[AUDIO_BUF_SIZE];
+}__attribute((packed))T_AUDIOBD;
 
 
 #endif

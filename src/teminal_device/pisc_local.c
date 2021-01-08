@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 09:13:53
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-15 11:36:03
+ * @LastEditTime: 2021-01-07 14:11:05
  */
 
 #include <stdio.h>
@@ -22,6 +22,7 @@
 #include "../operate_device/tms.h"
 #include "../port_layer/ctrl_udport.h"
 #include "../process_matrix/pis_datproc_matrix.h"
+#include "../driver/led.h"
 
 
 static T_PISC_PROCESSTDATA 	gtPiscProcessDataBackUp;		//过程数据帧
@@ -64,7 +65,7 @@ void PISC_LOCAL_ProcessDataInit(void)
 	tStationInfo.u8CurStation   = 1;
 	tStationInfo.u8NexStation   = 2;	
 
-	PISC_LOCAL_SetKeyStatus(0);
+	PISC_LOCAL_SetKeyStatus(1);
 	PISC_LOCAL_SetStationInfo(tStationInfo);
 	PISC_LOCAL_SetRunDir(PISC_DIR_UP);
 	PISC_LOCAL_SetWorkMode(PISC_ATC_MODE);	
@@ -120,10 +121,17 @@ void PISC_LOCAL_SetKeyStatus(uint8_t _u8Flag)
 {
 	if(_u8Flag != gtPiscProcessDataBackUp.tFlag.b8ActiveFlag)
 	{
-		printf("pisc_local_set_key_status: %d\r\n",_u8Flag);
+		printf("+++++++++++++++pisc_local_set_key_status: %d\r\n",_u8Flag);
 		//led灯显示
 		//led_onoff(KEY_LED_BIT,flag);
 		//led_ctrl(LED5_ACTIVE,flag);
+		if(_u8Flag == 0x00)
+		LED_Ctrl(LED_ACTIVE,LED_OFF);
+		else
+		{
+		LED_Ctrl(LED_ACTIVE,LED_ON);
+		}
+		
 		
 		gtPiscProcessDataBackUp.tFlag.b8ActiveFlag =_u8Flag;
 		//处理主备

@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 10:22:12
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 11:01:59
+ * @LastEditTime: 2021-01-08 11:34:37
  */ 
 /*网络服务线程*/
 #ifndef UDP_SERVICE
@@ -31,7 +31,8 @@ typedef struct _T_UDP_NET_EVCTL{
 	char cInitFlag;
 	T_EVENT_CTL  *ptEventCtl;
     T_EVENT_CTL  *ptUDPEventCtl;
-    T_EVENT_UDP *ptEventUdp;
+    T_EVENT_UDP  *ptEventUdp;
+	//T_EVENT_UDP  *ptEventFepAudioUdp;
 	T_UDP_NANOMSG_EVFDS tNanoMsgUDPNet;
 	T_MAINSERVER *ptServer;
 }T_UDP_NET_EVCTL;

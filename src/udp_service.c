@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-16 11:13:16
+ * @LastEditTime: 2021-01-08 14:56:09
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -15,8 +15,7 @@
 
 #include "udp_service.h"
 #include "port_layer/ctrl_udport.h"
-
-
+#include "port_layer/fep_audio_port.h"
 
 
 
@@ -32,7 +31,7 @@
 	 { 
 		  if(ptEvNetBuffer->iReadLen >=1024)
 		  {
-			 CTRL_UDPORT_ReadAFrameData(ptEvNetBuffer->acReadBuffer,1024);//PIS 过程数据读取1K数据
+			  CTRL_UDPORT_ReadAFrameData(ptEvNetBuffer->acReadBuffer,1024);//PIS 过程数据读取1K数据
 			  left_len = ptEvNetBuffer->iReadLen -1024;
 			  beg = 1024;
 		  }else
@@ -49,33 +48,9 @@
 		  }
 		  
 	 }
-	#if 0
-		ev_buffer_t *b = evtcp->buffer;
-		uint16_t beg = 0;
-		uint16_t end = 0;
-		uint16_t len = 0;
 
-		while (beg < b->roff) {
-			char *end_pos = (char *)memchr(b->r + beg, '\n', b->roff - beg);
-			if (!end_pos)
-				break;
-			end = end_pos - b->r;
-			len = end - beg + 1;
-			int ret = cb(evctl, evtcp, arg, b->r + beg, len);
-			//if (-1 == ret)
-				//return;
-
-			beg = end + 1;
-		}
-
-		uint16_t left = b->roff - beg;
-		if (beg != 0 && left > 0) {
-			memmove(b->r, b->r + beg, left);
-		}
-
-		b->roff = left;
-	#endif
  }
+
 
 
 
@@ -93,7 +68,8 @@ void *_UDP_SERVICE_ThreadBroadCastInit(void *_pvArg)
 		 zlog_error(ptMainServer->ptZlogCategory,"ThreadBroadCastInit ptEventCtl Create error\n");
 		 abort();
 	}
-     T_EVENT_UDP *ptEventUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,"168.168.102.255",50152,50152,_UDP_SERVICE_UdpRecive_EventCallBack,_pvArg);
+	//TMS 网络接收 以及网络发送
+     T_EVENT_UDP *ptEventUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,BROADCAST_IP,UDP_LOCAL_PORT,BROADCAST_IP,UDP_REMOTE_PORT,_UDP_SERVICE_UdpRecive_EventCallBack,ptMainServer);
 	  
 	 if(ptEventUdp == NULL)
      {
@@ -102,13 +78,30 @@ void *_UDP_SERVICE_ThreadBroadCastInit(void *_pvArg)
           abort();
      }
 
-	 ptUdpNetEventCtl->ptUDPEventCtl = ptEventCtl;
-	 ptUdpNetEventCtl->ptEventUdp = ptEventUdp;
+	#if 0
+	 T_EVENT_UDP *ptEventFepAudioUdp = EV_NET_EventUDP_CreateAndStart(ptEventCtl,NULL,FEP_AUDIO_LOCAL_PORT,NULL,FEP_AUDIO_REMOTE_PORT,_UDP_FEP_AUDIO_Recive_EventCallBack,_pvArg);
+	  
+	 if(ptEventFepAudioUdp == NULL)
+     {
+          zlog_error(ptMainServer->ptZlogCategory,"Event UDP FEP Audio create failed\r\n");
+		  EVIO_EventFd_Del(ptEventCtl,ptEventUdp->ptEventFd);
+		  EVIO_EventCtl_Free(ptEventCtl);
+          abort();
+     }
+	 ptUdpNetEventCtl->ptEventFepAudioUdp = ptEventFepAudioUdp;
+	#endif
+
+
+	 ptUdpNetEventCtl->ptUDPEventCtl      = ptEventCtl;
+	 ptUdpNetEventCtl->ptEventUdp         = ptEventUdp;
+	 
      while(1)
      {
         EVIO_EventCtlLoop_Start(ptEventCtl);
      }
-    EVIO_EventFd_Del(ptEventCtl,ptEventUdp->ptEventFd);
+    //EVIO_EventFd_Del(ptEventCtl,ptEventUdp->ptEventFd);
+	//EVIO_EventFd_Del(ptEventCtl,ptEventFepAudioUdp->ptEventFd);
+	EV_NET_EventUDP_Close(ptEventCtl,ptEventUdp);
 	EVIO_EventCtl_Free(ptEventCtl);
 	return NULL;  
 }
@@ -237,9 +230,9 @@ void *UDP_SERVICE_Thread_Handle(void *_pvArg)
         EVIO_EventCtlLoop_Start(tUDPNetEventCtl.ptEventCtl);
      }
 	EVIO_EventFd_Del(tUDPNetEventCtl.ptEventCtl, tUDPNetEventCtl.tNanoMsgUDPNet.ptEventFd);
-	EVIO_EventCtl_Free(tUDPNetEventCtl.ptEventCtl);
 	close(tUDPNetEventCtl.tNanoMsgUDPNet.iSysFd);
 	nn_close(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd);
+	EVIO_EventCtl_Free(tUDPNetEventCtl.ptEventCtl);
 	return NULL;
 }
 
@@ -259,7 +252,7 @@ void  UDP_SERVICE_SendNanoMsg(uint8_t *_pcMsg)
 	if(_pcMsg != NULL)
 	{
 		printf("22222222222\r\n");
-	 int bytes = 	nn_send(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd, &_pcMsg, NN_MSG, NN_DONTWAIT);
-	 printf("222222bytes===%d\r\n",bytes);
+	    int bytes = 	nn_send(tUDPNetEventCtl.tNanoMsgUDPNet.iNanoMsgFd, &_pcMsg, NN_MSG, NN_DONTWAIT);
+	    printf("222222bytes===%d\r\n",bytes);
 	}
 }

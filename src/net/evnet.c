@@ -99,7 +99,6 @@ static int _EV_NET_EventUDPWriteToBuffer(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_
 	
     return 0;
 
-    return 0;
 }
 
  void  EV_NET_EventUDP_WriteData(T_EVENT_CTL *_ptEventCtl, T_EVENT_UDP * _ptEventUDP ,const char *data, int32_t size)
@@ -140,12 +139,12 @@ static void _EV_NET_EventUDPNetCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_p
 }
 
 /*启动UDP server*/
-T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _LocalPort,uint16_t _RemotePort, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg)
+T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcIpaddr, uint16_t _LocalPort, char * _pcRemoteAddr,uint16_t _RemotePort, PF_EVENT_UDP_CALLBACK _pfEventCallBack,void *_pvArg)
 {
 	 int opt_bBroadcast = 1;
 	 struct sockaddr_in tUdpSocketAddr;
 	
-	 T_MAINSERVER *ptMainServer = ((T_UDP_NET_EVCTL *) _pvArg)->ptServer;
+	 T_MAINSERVER *ptMainServer = (T_MAINSERVER *) _pvArg;
 
 	 int iSockFd = socket(AF_INET, SOCK_DGRAM, 0);
 	 if(-1 == iSockFd)
@@ -159,11 +158,15 @@ T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcI
 	 bzero(&tUdpSocketAddr, sizeof(tUdpSocketAddr));
 	 tUdpSocketAddr.sin_family = AF_INET;
 	 if(_pcIpaddr == NULL)
-	 tUdpSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	 {
+	  printf("+++++++++++++++++Any Addr\r\n");
+	  tUdpSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	 }
 	 else
 	 tUdpSocketAddr.sin_addr.s_addr = inet_addr(_pcIpaddr);
 	 
 	 tUdpSocketAddr.sin_port = htons(_LocalPort);
+	//printf("+++++++++++++++++LocalPort:%d,_RemotePort:%d\r\n", _LocalPort,_RemotePort);
 	 
 	 if(-1 == bind(iSockFd, (struct sockaddr*)&tUdpSocketAddr, sizeof(tUdpSocketAddr)))
 	 	{
@@ -171,11 +174,25 @@ T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcI
 			 close(iSockFd);
 			 return NULL;
 		}
-	 
+	
 	  T_EVENT_UDP *ptEventUDP = _EV_NET_EventUDP_Create(iSockFd, _pvArg);
-	  ptEventUDP->tRemote_addr.sin_port = htons(_RemotePort); 
-	  inet_pton(AF_INET,_pcIpaddr,&ptEventUDP->tRemote_addr.sin_addr);
+	  if(ptEventUDP == NULL)
+	  {
+		   zlog_error(ptMainServer->ptZlogCategory,"_EV_NET_EventUDP_Create Failed");
+	  }
+	  
+	  if(_RemotePort != 0)
+	   ptEventUDP->tRemote_addr.sin_port = htons(_RemotePort);
+	   //printf("_RemotePort:%d,%p\r\n",_RemotePort,_pcRemoteAddr);
+	  
+	  if(_pcRemoteAddr != NULL)
+	  {
+		inet_pton(AF_INET,_pcRemoteAddr,&ptEventUDP->tRemote_addr.sin_addr);
+	  }
+	  //printf("+++++------+++++++++%p+\r\n",ptMainServer->ptZlogCategory);
+	  if(_pcIpaddr != NULL)
 	  zlog_info(ptMainServer->ptZlogCategory,"UDP:%s,BindPort:%d--%d\n",_pcIpaddr,_LocalPort,ptEventUDP->tRemote_addr.sin_port);
+
 	  ptEventUDP->pfEventCallBack = _pfEventCallBack;
 	  ptEventUDP->ptEventFd = EVIO_EventFd_Add(_ptEventCtl,iSockFd,_EV_NET_EventUDPNetCallBack,ptEventUDP);
 	  EVIO_Event_Watch_Read(_ptEventCtl, ptEventUDP->ptEventFd);
@@ -185,7 +202,22 @@ T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcI
 
 
 
+void     EV_NET_EventUDP_Close(T_EVENT_CTL *_ptEventCtl,T_EVENT_UDP * _ptEventUDP)
+{
 
+	if(_ptEventUDP != NULL)
+	{
+		EVIO_EventFd_Del(_ptEventCtl,_ptEventUDP->ptEventFd);
+	}
+	if(_ptEventUDP->ptEvNetBuffer)
+	{
+		_EV_NET_UnBindAUsingBuffer(_ptEventUDP->ptEvNetBuffer);
+	}
+	close(_ptEventUDP->iSocketFd);
+	free(_ptEventUDP);
+	_ptEventUDP = NULL;
+
+}
 
 #if 0
 /*TCP 读取数据到缓冲区*/

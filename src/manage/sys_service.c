@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-07 15:35:18
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-21 16:02:32
+ * @LastEditTime: 2021-01-08 15:10:20
  */
 #include "sys_service.h"
 #include "evio/evio.h"
@@ -17,7 +17,8 @@
 #include "broadcast.h"
 #include <pthread.h>
 #include "mp3_decoder.h"
-
+#include "../port_layer/fep_audio_port.h"
+#include "../port_layer/audio_port_bd.h"
 
 
 T_TRAIN_SYSTEM  tTrainSystem;
@@ -67,7 +68,23 @@ void *TrainSystemService_ThreadHandle(void *_pvArg)
 	 {
 		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
 	 }
-     
+
+  
+    //功放音频同步UDP接收线程
+
+     ret =pthread_create(&tThreadMP3Decoder,NULL,FEP_Audio_SyncThread_Handle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
+	 }
+
+     //广播音频网络层初始化
+    ret =pthread_create(&tThreadMP3Decoder,NULL,BDAudio_Thread_Handle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
+	 }
+
     pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
 	++ptMainServer->iThread_bStartCnt;
 	pthread_cond_signal(&ptMainServer->tThread_StartCond);

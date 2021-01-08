@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 17:06:24
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-22 08:47:28
+ * @LastEditTime: 2021-01-08 16:22:45
  */
 
 #include <unistd.h>
@@ -275,7 +275,9 @@ uint8_t _MP3_Decoder_AVCodec_Decode(AVFormatContext * _ptFormatCtx,AVCodecContex
                     {
                         int bytes = av_get_bytes_per_sample(_ptAudioCodecCtx->sample_fmt & 0xFF);
                         au16DecomPresseed_AudioSize = tAvFrame.linesize[0];
+                        #if DEBUG_MP3_DECODE
                         printf("bytePerSample:%d,frame.nb_samples:%d,sample_fmt:%d--decomPressedSize:%d\r\n",bytes,tAvFrame.nb_samples,_ptAudioCodecCtx->sample_fmt,au16DecomPresseed_AudioSize);
+                        #endif
                         memcpy((unsigned char *)au16DecomPressed_AudioBuffer, (unsigned char *)tAvFrame.data[0],au16DecomPresseed_AudioSize);
                     }
                     
@@ -429,13 +431,15 @@ uint8_t  MP3_Decoder_Get_PCM_Data(uint16_t *_pu16Buffer,uint16_t _u16Len)
 
   if(KRingBuffer_GetLength(gptKRingBuffer)!=0)
 	 {
-		KRingBuffer_Get(gptKRingBuffer,_pu16Buffer,_u16Len*sizeof(uint16_t));
+		KRingBuffer_Get(gptKRingBuffer,_pu16Buffer,_u16Len);
 		return 1;
 	 }else 
 	    return 0;
     
 }
 
+
+#define DEBUG_MP3_DECODE  0
 
 void  *MP3_Decoder_Service_ThreadHandle(void *_pvParam)
 {
@@ -463,7 +467,9 @@ void  *MP3_Decoder_Service_ThreadHandle(void *_pvParam)
     }
      //gtMP3Decoder_Serivce.u8MP3DecoderRunFlag = DECODING;
      pthread_mutex_unlock(&gtMP3Decoder_Serivce.tThread_Mutex);
+     #if DEBUG_MP3_DECODE
      printf(" MP3Decoding.....starting......\r\n");
+     #endif
 
     //判断全部播放完毕 退出 最后一个文件为空则视为全面解码完成
      if(gtAudioChannel_Left.acFileList[gtAudioChannel_Left.iCurFileIndex][0] == 0)
@@ -502,11 +508,15 @@ void  *MP3_Decoder_Service_ThreadHandle(void *_pvParam)
              /* 设置解码文件标识 */
              int iFlag = _MP3_Decoder_AVCodec_Decode(gtAudioChannel_Left.pFormatCtx,gtAudioChannel_Left.pAudioCodecCtx,gtAudioChannel_Left.iAudioStream,
                                                      gtAudioChannel_Left.pVideoCodecCtx,gtAudioChannel_Left.iVideoStream);
+            #if DEBUG_MP3_DECODE
              printf("Decoding................................OK\r\n");
+            #endif
+            
              _MP3_Decoder_Set_CurrentFileEOF(iFlag);
              //判断是否播放完毕 指向下一个文件
              if(_MP3_Decoder_Get_CurrentFileEOF() == FILE_EOF_TRUE || (MP3_Decoder_Get_IsDecoding() == NODECODING))
              {
+                 
                 printf("Decoding................................OVER...OK\r\n");
                 _MP3_Decoder_AVCodec_Close(&gtAudioChannel_Left.pFormatCtx,gtAudioChannel_Left.pAudioCodecCtx,gtAudioChannel_Left.iAudioStream,\
                                             gtAudioChannel_Left.pVideoCodecCtx,gtAudioChannel_Left.iVideoStream);                

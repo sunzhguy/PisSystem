@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-21 09:38:02
+ * @LastEditTime: 2021-01-07 14:01:05
  */
 
 #include <stdio.h>
@@ -23,6 +23,7 @@
 #include "../manage/broadcast.h"
 #include "../driver/systime.h"
 #include "../udp_service.h"
+#include "driver/led.h"
 
 //TMS 上下行
 #define  TMS_RUNDIR_UP     (1)
@@ -264,6 +265,7 @@ static void _TMS_TimeSet (T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFrame)
 
 	T_TMS_RECVPACKT *ptTmsRecvPacket = (T_TMS_RECVPACKT*)_ptPisRecvPackDataFrame->acData;
 	PISC_LOCAL_SetTime((uint8_t *)&ptTmsRecvPacket->tTmsTime,sizeof(T_TMSTIME));
+	
 
 }
 
@@ -408,7 +410,7 @@ static void _TMS_RecivAFrameDataPackHandle(uint8_t *pcBuf)
 	
 	printf("_TMS_RecivAFrameDataPackHandle......\r\n");
 	//printf("PISC Mode:%d,status:%d\n",PISC_LOCAL_GetWorkMode(),PISC_LOCAL_GetMasterFlag());
-	
+	 LED_Toggle(LED_TMS);
 	if(PISC_LOCAL_GetWorkMode() != PISC_ATC_MODE)
 	{
 		printf("MODE++++++++++++%d\n",PISC_LOCAL_GetWorkMode());
