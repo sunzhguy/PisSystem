@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 08:47:41
+ * @LastEditTime: 2021-01-09 17:36:08
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -516,6 +516,26 @@ uint8_t   BROADCAST_GetPriority(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t 
 	}
 	return 0xff;
 }
+
+/*音频同步数据发送*/
+static _BROADCAST_AudioSyncSendHandle(void)
+{
+  T_BROADCASTPROC_LIST const *ptBdProcList = _gtBroadCastProcessList;
+  while(ptBdProcList->u8BdType)
+  {
+	  if(ptBdProcList->u8BdType == BROADCAST_GetBroadCastType())
+	  {
+		  ptBdProcList->pfBroadCastAudioSend();
+		  printf("+++++++++++++++++++++++\r\n");
+		  break;
+	  }
+	  ptBdProcList++;
+  }
+
+}
+
+
+
 static void _BROADCAST_Media(void)
 {
     printf("%s:%s\n",__FILE__,__func__);
@@ -634,23 +654,33 @@ void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFD
 	T_BROADCAST_SERVICE* ptBroadCastService   = _ptBroadCastNanoMsgFd->pvArg;
 	T_MAINSERVER *ptMainServer = ptBroadCastService->ptMainServer;
 	uint32_t bytes = nn_recv(_ptBroadCastNanoMsgFd->iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
-	if (-1 != bytes) {
-			zlog_info(ptMainServer->ptZlogCategory,"UDP---------XXXXXXXXXXXXXXXXXXXXX------->Broadcast++%d\n",bytes);
-
-		if(dat[0] == MSG_UDP_TMS2BDCAST)
+	if (-1 != bytes) 
+	{
+		zlog_info(ptMainServer->ptZlogCategory,"UDP---------XXXXXXXXXXXXXXXXXXXXX------->Broadcast++%d<type:%d>\n",bytes,dat[1]);
+		switch(dat[1])
 		{
-			if(dat[1] == BROADCAST_PLAY)
+			case MSG_TYPE_TMSUDP:
 			{
-				BROADCAST_Process(dat[2],dat[3],dat[4]);
-			}else if(dat[1] == BROADCAST_STOP)
-			{
-				 //[1]: _u8OpType;[2] :_u8DevType;[3] :_u8DevId;[4] : _u8BdType;
-				 printf("STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\r\n");
-				BROADCAST_StopProcess(dat[4]);
+				printf("+++++++++++++++++++++dat[2:%d \r\n",dat[2] );
+				if(dat[2] == BROADCAST_PLAY)
+				{
+					BROADCAST_Process(dat[3],dat[4],dat[5]);
+				}else if(dat[2] == BROADCAST_STOP)
+				{
+					//[3]: _u8OpType;[4] :_u8DevType;[5] :_u8DevId;[6] : _u8BdType;
+					printf("STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\r\n");
+					BROADCAST_StopProcess(dat[6]);
+				}
+				break;
 			}
+			case MSG_TYPE_FEPAUDIO://Fep Audio Sync BroadCast Send
+			{
+				
+			}
+			default:
+			    break;
 		}
-			
-			nn_freemsg(dat);
+		nn_freemsg(dat);
 	}
 }
 
@@ -684,7 +714,7 @@ static int32_t _BROADCAST_NanomsgSocket_Init(T_BROADCAST_SERVICE  *_ptBroadCastS
 		zlog_error(ptMainServer->ptZlogCategory,"+++BROADCAST nn_socket error...\n");
 		return -1;
 	}
-	if (-1 == nn_bind(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd, "inproc://udp<->broadcast"))
+	if (-1 == nn_connect(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd, "inproc://main<->broadcast"))
 	{
 		nn_close(_ptBroadCastService->tNanoMsgFdsUdp2BroadCast.iNanomsgFd);
 		zlog_error(ptMainServer->ptZlogCategory,"+++BROADCAST nn_bind error...\n");

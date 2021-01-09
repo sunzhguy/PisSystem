@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 14:56:09
+ * @LastEditTime: 2021-01-09 17:14:05
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -153,7 +153,7 @@ static int32_t _UDP_SERVICE_UdpEventCtlInit(T_UDP_NET_EVCTL *_ptUdpNetEventCtl)
 		zlog_error(ptMainServer->ptZlogCategory,"++++nn_socket failed\n");
 		return -1;
 	}
-	if (-1 == nn_connect(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, "inproc://udp<->broadcast"))
+	if (-1 == nn_connect(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, "inproc://udp<->main"))
 	{
 	  zlog_error(ptMainServer->ptZlogCategory,"++++nn_connect failed\n");
       nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);

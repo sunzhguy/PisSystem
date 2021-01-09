@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-21 10:40:22
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 17:33:58
+ * @LastEditTime: 2021-01-09 16:38:58
  */
 #include "audio_port_bd.h"
 #include "../include/general.h"
@@ -61,7 +61,7 @@ static int32_t _BDAUDIO_NanoMsgAndEventCtlInit(T_BDAUDIO_NET_EVCTL *_ptBDAudioNe
 		zlog_error(ptMainServer->ptZlogCategory,"++++nn_socket failed\n");
 		return -1;
 	}
-	if (-1 == nn_bind(_ptBDAudioNetEventCtl->tNanomsgEvFds.iNanoMsgFd, "inproc://fep_synaudio<->bd_audio"))
+	if (-1 == nn_connect(_ptBDAudioNetEventCtl->tNanomsgEvFds.iNanoMsgFd, "inproc://main<->bd_audio"))
 	{
 	  zlog_error(ptMainServer->ptZlogCategory,"++++BDAudio nn_bind failed\n");
       nn_close(_ptBDAudioNetEventCtl->tNanomsgEvFds.iNanoMsgFd);

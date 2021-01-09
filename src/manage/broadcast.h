@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:20
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 17:23:37
+ * @LastEditTime: 2021-01-09 17:31:28
  */
 #ifndef BROADCAST_H
 #define BROADCAST_H
@@ -61,6 +61,7 @@ uint8_t BROADCAST_GetBroadCastCycleFlag(void);
 
 
 void    BROADCAST_AudioSend(uint8_t *_pcBuffer,uint16_t _u16Len);
+
 
 void    BROADCAST_SendPriority(void);
 void    BROADCAST_SendVolume(void);

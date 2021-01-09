@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-07 14:01:05
+ * @LastEditTime: 2021-01-09 17:23:11
  */
 
 #include <stdio.h>
@@ -271,14 +271,15 @@ static void _TMS_TimeSet (T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFrame)
 
 void TMS_SendNanoMsgToBroadCast(uint8_t _u8OpType,uint8_t _u8DevType,uint8_t _u8DevId,uint8_t _u8BdType)
 {
-	uint8_t *dat = nn_allocmsg(5, 0);
+	uint8_t *dat = nn_allocmsg(8, 0);
     if (NULL != dat) {
-		 dat[0] = MSG_UDP_TMS2BDCAST;
-         dat[1] = _u8OpType;
-		 dat[2] = _u8DevType;
-		 dat[3] = _u8DevId;
-		 dat[4] = _u8BdType;
-		 printf("++++++++111++++++++\r\n");
+		 dat[0] = TO_BROADCAST_NS;
+		 dat[1] = MSG_TYPE_TMSUDP;
+         dat[2] = _u8OpType;
+		 dat[3] = _u8DevType;
+		 dat[4] = _u8DevId;
+		 dat[5] = _u8BdType;
+		
 	 	 UDP_SERVICE_SendNanoMsg(dat);
 	}
 

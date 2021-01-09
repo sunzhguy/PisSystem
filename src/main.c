@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-15 11:02:55
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-07 11:56:51
+ * @LastEditTime: 2021-01-09 17:16:08
  */ 
 //__attribute__ ((unused)) #define UNUSED(x) (void)(x)
 
@@ -25,7 +25,7 @@
 #include "udp_service.h"
 #include "main.h"
 #include "manage/sys_service.h"
-
+#include "include/commnanomsg.h"
 #include "driver/led.h"
 
 
@@ -62,8 +62,19 @@ void Main_Handle_UDPNanomsgEvent(T_EVENT_CTL *_ptEventCtl, T_MAIN_NANOMSGFDS *_p
 	T_MAINSERVER *ptMainServer = _ptMainNanoMsgFds->pvArg;
 	uint32_t bytes = nn_recv(_ptMainNanoMsgFds->iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
 	if (-1 != bytes) {
-			zlog_debug(ptMainServer->ptZlogCategory,"UDP-->Mainserver++%s\n",dat);
-			nn_freemsg(dat);
+			zlog_debug(ptMainServer->ptZlogCategory,"UDP-->Mainserver++%d\n",dat[0]);
+		switch(dat[0])
+		{
+			case TO_BROADCAST_NS:
+				nn_send(ptMainServer->tMainServerEventLoop.tNanoMsgFdsBroadCast.iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
+			   break;
+
+			default:
+				nn_freemsg(dat);
+				break;
+		}
+
+		
 	}
 }
 
@@ -92,6 +103,7 @@ int32_t Main_NanomsgSocket_Init(T_MAINSERVER *_ptMainServer)
 	size_t size = sizeof(size_t);
 	T_MAINSERVEREVENTLOOP *ptMainServerEventLoop = &_ptMainServer->tMainServerEventLoop;
 	
+	/*******************main -----udp**************************************/
 	ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd= nn_socket(AF_SP, NN_PAIR);
 	if (-1 == ptMainServerEventLoop->tNanoMsgFdsUDP.iNanomsgFd)
 	{
@@ -111,6 +123,50 @@ int32_t Main_NanomsgSocket_Init(T_MAINSERVER *_ptMainServer)
 		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop nn_getsockopt error...\n");
 		return -1;
 	}
+
+	/****************************************main-------fep audio sync*****************/
+	ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd= nn_socket(AF_SP, NN_PAIR);
+	if (-1 == ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd)
+	{
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop fepsync_audio nn_socket error...\n");
+		return -1;
+	}
+	if (-1 == nn_bind(ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd, "inproc://main<->fepsync_audio"))
+	{
+		nn_close(ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd);
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop fepsync_audio nn_bind error...\n");
+		return -1;
+	}
+	
+	if (-1 == nn_getsockopt(ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd, NN_SOL_SOCKET, NN_RCVFD, (char *)&ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iSysFd, &size))
+	{
+     	nn_close(ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd);
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop fepsync_audio nn_getsockopt error...\n");
+		return -1;
+	}
+
+	/****************************************main-------broadcast*****************/
+	ptMainServerEventLoop->tNanoMsgFdsBroadCast.iNanomsgFd= nn_socket(AF_SP, NN_PAIR);
+	if (-1 == ptMainServerEventLoop->tNanoMsgFdsFepSyncUDP.iNanomsgFd)
+	{
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop broadcast nn_socket error...\n");
+		return -1;
+	}
+	if (-1 == nn_bind(ptMainServerEventLoop->tNanoMsgFdsBroadCast.iNanomsgFd, "inproc://main<->broadcast"))
+	{
+		nn_close(ptMainServerEventLoop->tNanoMsgFdsBroadCast.iNanomsgFd);
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop broadcast nn_bind error...\n");
+		return -1;
+	}
+	
+	if (-1 == nn_getsockopt(ptMainServerEventLoop->tNanoMsgFdsBroadCast.iNanomsgFd, NN_SOL_SOCKET, NN_RCVFD, (char *)&ptMainServerEventLoop->tNanoMsgFdsBroadCast.iSysFd, &size))
+	{
+     	nn_close(ptMainServerEventLoop->tNanoMsgFdsBroadCast.iNanomsgFd);
+		zlog_error(_ptMainServer->ptZlogCategory,"+++main_loop fepsync_audio nn_getsockopt error...\n");
+		return -1;
+	}
+
+
 	return 0;
 }
 void Main_NanomsgSocket_Close(T_MAINSERVER *_ptMainServer)

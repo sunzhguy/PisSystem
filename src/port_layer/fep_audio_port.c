@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 16:22:19
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 08:56:20
+ * @LastEditTime: 2021-01-09 17:27:23
  */
 
 #include "fep_audio_port.h"
@@ -68,7 +68,7 @@ static int32_t _FEPAUDIO_NanoMsgAndEventCtlInit(T_FEP_AUDIO_NET_EVCTL *_ptFepAud
 		zlog_error(ptMainServer->ptZlogCategory,"++++nn_socket failed\n");
 		return -1;
 	}
-	if (-1 == nn_connect(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd, "inproc://fep_synaudio<->bd_audio"))
+	if (-1 == nn_connect(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd, "inproc://udp<->fepsync_audio"))
 	{
 	  zlog_error(ptMainServer->ptZlogCategory,"++++nn_connect failed\n");
       nn_close(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd);
@@ -129,7 +129,8 @@ static void  _FEP_Audio_SendNanoMsg(T_FEP_AUDIO_NET_EVCTL *_ptFepAudioNetCtl)
 	uint8_t *dat = nn_allocmsg(4, 0);
     if (NULL != dat) 
 	{
-		dat[0] = NANOMSG_FEPSYN2BDAUDIO;
+		dat[0] = TO_BROADCAST_NS;
+		dat[1] = MSG_TYPE_FEPAUDIO;
 	    int bytes = nn_send(_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
 		printf("{%d}--send.........byte...%d\r\n",_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd,bytes);
 	}
