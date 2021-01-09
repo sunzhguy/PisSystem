@@ -166,11 +166,11 @@ T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcI
 	 tUdpSocketAddr.sin_addr.s_addr = inet_addr(_pcIpaddr);
 	 
 	 tUdpSocketAddr.sin_port = htons(_LocalPort);
-	//printf("+++++++++++++++++LocalPort:%d,_RemotePort:%d\r\n", _LocalPort,_RemotePort);
+	 //printf("+++++++++++++%s++++LocalPort:%d,_RemotePort:%d\r\n",_pcIpaddr, _LocalPort,_RemotePort);
 	 
 	 if(-1 == bind(iSockFd, (struct sockaddr*)&tUdpSocketAddr, sizeof(tUdpSocketAddr)))
 	 	{
-			 zlog_error(ptMainServer->ptZlogCategory,"%s:%dError udp  bind  error.....\r\n",__func__,__LINE__);
+			 zlog_error(ptMainServer->ptZlogCategory,"%s:%dError udp  bind  port:%d error.....\r\n",__func__,__LINE__,_LocalPort);
 			 close(iSockFd);
 			 return NULL;
 		}

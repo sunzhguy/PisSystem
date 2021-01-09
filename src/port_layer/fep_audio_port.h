@@ -20,7 +20,7 @@
 #define FEP_AUDIO_REMOTE_PORT	    (53151)
 #define FEP_AUDIO_REMOTE_IP		  "168.168.102.255"
 
-#define NANOMSG_FEPSYNAUDIO_BDAUDIO  0x01         /*Nanomsg*/
+
 
 
 typedef struct _T_NANOMSG_EVFDS  T_NANOMSG_EVFDS;

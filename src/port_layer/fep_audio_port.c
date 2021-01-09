@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 16:22:19
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 16:13:26
+ * @LastEditTime: 2021-01-09 08:56:20
  */
 
 #include "fep_audio_port.h"
@@ -131,7 +131,7 @@ static void  _FEP_Audio_SendNanoMsg(T_FEP_AUDIO_NET_EVCTL *_ptFepAudioNetCtl)
 	{
 		dat[0] = NANOMSG_FEPSYN2BDAUDIO;
 	    int bytes = nn_send(_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
-		//printf("{%d}--send.........byte...%d\r\n",_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd,bytes);
+		printf("{%d}--send.........byte...%d\r\n",_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd,bytes);
 	}
 }
 

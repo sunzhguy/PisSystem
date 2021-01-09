@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 17:26:52
+ * @LastEditTime: 2021-01-09 08:47:41
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -635,7 +635,7 @@ void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFD
 	T_MAINSERVER *ptMainServer = ptBroadCastService->ptMainServer;
 	uint32_t bytes = nn_recv(_ptBroadCastNanoMsgFd->iNanomsgFd, &dat, NN_MSG, NN_DONTWAIT);
 	if (-1 != bytes) {
-			zlog_info(ptMainServer->ptZlogCategory,"UDP---------------->Broadcast++%d\n",bytes);
+			zlog_info(ptMainServer->ptZlogCategory,"UDP---------XXXXXXXXXXXXXXXXXXXXX------->Broadcast++%d\n",bytes);
 
 		if(dat[0] == MSG_UDP_TMS2BDCAST)
 		{
