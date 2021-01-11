@@ -159,7 +159,7 @@ T_EVENT_UDP *EV_NET_EventUDP_CreateAndStart(T_EVENT_CTL *_ptEventCtl, char *_pcI
 	 tUdpSocketAddr.sin_family = AF_INET;
 	 if(_pcIpaddr == NULL)
 	 {
-	  printf("+++++++++++++++++Any Addr\r\n");
+	 //printf("+++++++++++++++++Any Addr\r\n");
 	  tUdpSocketAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	 }
 	 else

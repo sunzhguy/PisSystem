@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 09:04:27
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 16:33:15
+ * @LastEditTime: 2021-01-11 10:38:01
  */ 
 
 #ifndef _MAIN_H
@@ -32,6 +32,7 @@ typedef struct  {
 	T_MAIN_NANOMSGFDS  tNanoMsgFdsUDP;//主服务循环 ---》UDP 与main loop 之间的通信
 	T_MAIN_NANOMSGFDS  tNanoMsgFdsFepSyncUDP;//主服务循环 ---》FepAudioSyncUDP main loop 之间通信
 	T_MAIN_NANOMSGFDS  tNanoMsgFdsBroadCast;//主服务循环 ---》BroadCast main loop 之间通信
+	T_MAIN_NANOMSGFDS  tNanoMsgFdsIOInput;//主服务循环 ---》IOInput main loop 之间通信
 }T_MAINSERVEREVENTLOOP;
 
 struct _T_MAINSERVER {

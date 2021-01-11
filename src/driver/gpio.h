@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 08:32:49
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-07 11:15:59
+ * @LastEditTime: 2021-01-11 13:46:31
  */
 
 
@@ -25,20 +25,22 @@
 #define  IO_ERR            GPIO_PIN(GPIO(5),PIN(8))
 
 
+#define  MODE_NONE      0
+#define  MODE_RISING    1  //
+#define  MODE_FALLING   2
+#define  MODE_BOTH      3
 
 
 
-
-
-#define  IO_R_OPEN4         GPIO_PIN(GPIO(4),PIN(24))
-#define  IO_L_OPEN3         GPIO_PIN(GPIO(4),PIN(23))
+#define  IO_R_OPEN4         GPIO_PIN(GPIO(4),PIN(24)) //---
+#define  IO_L_OPEN3         GPIO_PIN(GPIO(4),PIN(23)) //--
 #define  IO_SPEED2          GPIO_PIN(GPIO(1),PIN(30))
 #define  IO_KEY1            GPIO_PIN(GPIO(1),PIN(31))
 #define  IO_CTRL            GPIO_PIN(GPIO(1),PIN(28)) //司机占有
 #define  IO_CL_CTRL         GPIO_PIN(GPIO(1),PIN(29)) //重连
 
-#define  IO_CLOSE5          GPIO_PIN(GPIO(1),PIN(1)) //司机占有
-#define  IO_OCC_ACT6        GPIO_PIN(GPIO(1),PIN(2)) //重连
+#define  IO_CLOSE5          GPIO_PIN(GPIO(1),PIN(1)) //
+#define  IO_OCC_ACT6        GPIO_PIN(GPIO(1),PIN(2)) //
 
 #define  IO_CPU_ADDR1       GPIO_PIN(GPIO(1),PIN(8)) //ADDR1
 #define  IO_CPU_ADDR2       GPIO_PIN(GPIO(1),PIN(9)) //ADDR2
@@ -49,7 +51,11 @@ int  GPIO_Init(const int _iGpio,const int _iDir);
 
 int  GPIO_IO_Ctrl(const int _iGpio,const int _iValue);
 
+int  GPIO_IO_TrigCtl(const int _iGpio,const int _mode);
+
 int  GPIO_IO_Value(const int _iGpio);
+
+int  GPIO_IO_GetReadFd(const int _iGpio);
 
 int  GPIO_IO_Toggle(const int _iGpio);
 

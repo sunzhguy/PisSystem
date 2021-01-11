@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-21 10:40:22
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 16:38:58
+ * @LastEditTime: 2021-01-11 10:58:42
  */
 #include "audio_port_bd.h"
 #include "../include/general.h"
@@ -167,6 +167,8 @@ void *BDAudio_Thread_Handle(void *_pvArg)
     sgtBDAudioNetCtl.ptServer    = ptMainServer;
     sgtBDAudioNetCtl.ptEventCtl  = NULL;
     sgtBDAudioNetCtl.ptEventUdp  = NULL;
+	zlog_info(ptMainServer->ptZlogCategory,"BDAudio_Thread_Handle ....start\n");
+	pthread_mutex_init(&sgtBDAudioNetCtl.tThread_Mutex, NULL);
 	if(-1 == _BDAUDIO_NanoMsgAndEventCtlInit(&sgtBDAudioNetCtl))
 	{
 		zlog_error(ptMainServer->ptZlogCategory,"BD_Audio_SyncThread_Handle Event Ctl Init Failed\n");
@@ -189,6 +191,11 @@ void *BDAudio_Thread_Handle(void *_pvArg)
      }
    
      sgtBDAudioNetCtl.ptEventUdp = ptEventBDAudioUdp;
+
+	 pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
+	++ptMainServer->iThread_bStartCnt;
+	pthread_cond_signal(&ptMainServer->tThread_StartCond);
+	pthread_mutex_unlock(&ptMainServer->tThread_StartMutex);
     while(1)
      {
         EVIO_EventCtlLoop_Start(sgtBDAudioNetCtl.ptEventCtl);
@@ -202,9 +209,11 @@ void *BDAudio_Thread_Handle(void *_pvArg)
 
 void AudioPortBD_SendData(uint8_t* _pcBuf,uint32_t _u32DatLen)
 {
+	pthread_mutex_lock(&sgtBDAudioNetCtl.tThread_Mutex);
 	if(sgtBDAudioNetCtl.ptEventUdp !=NULL && sgtBDAudioNetCtl.ptEventCtl!= NULL)
 	{
       EV_NET_EventUDP_WriteData(sgtBDAudioNetCtl.ptEventCtl,sgtBDAudioNetCtl.ptEventUdp,_pcBuf,_u32DatLen);
 	}
+	pthread_mutex_unlock(&sgtBDAudioNetCtl.tThread_Mutex);
 	
 }

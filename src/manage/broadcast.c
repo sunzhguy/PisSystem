@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 17:36:08
+ * @LastEditTime: 2021-01-11 08:46:56
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -526,7 +526,7 @@ static _BROADCAST_AudioSyncSendHandle(void)
 	  if(ptBdProcList->u8BdType == BROADCAST_GetBroadCastType())
 	  {
 		  ptBdProcList->pfBroadCastAudioSend();
-		  printf("+++++++++++++++++++++++\r\n");
+		  printf("+++++++++++#########++++++++++++\r\n");
 		  break;
 	  }
 	  ptBdProcList++;
@@ -675,7 +675,7 @@ void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFD
 			}
 			case MSG_TYPE_FEPAUDIO://Fep Audio Sync BroadCast Send
 			{
-				
+				_BROADCAST_AudioSyncSendHandle();
 			}
 			default:
 			    break;

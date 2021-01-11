@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:51
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-03 14:28:23
+ * @LastEditTime: 2021-01-11 13:58:43
  */ 
 #include <stdio.h>
 #include <unistd.h>
@@ -13,6 +13,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include "evio.h"
+
 
 #define TIMEMOUT_TM  1000
 
@@ -88,10 +89,15 @@ void EVIO_EventCtlLoop_Start(T_EVENT_CTL *_ptEventCtl)
             continue;
         if ((events & EPOLLIN) && (ptEventFd->iEvents & EPOLLIN))
             ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_READ, ptEventFd->pvArg);
+
+         if ((events & EPOLLPRI) && (ptEventFd->iEvents & EPOLLPRI))
+            ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_READ, ptEventFd->pvArg);
+            
         if (!ptEventFd->bIsDel && (events & EPOLLOUT) && (ptEventFd->iEvents & EPOLLOUT))
             ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_WRITE, ptEventFd->pvArg);
         if (!ptEventFd->bIsDel && events & (EPOLLHUP | EPOLLERR))
             ptEventFd->pfEventCallBack(_ptEventCtl, ptEventFd, ptEventFd->iFd, E_EV_ERROR, ptEventFd->pvArg);
+       
     }
 
     _ptEventCtl->bLooping = 0;
@@ -181,6 +187,18 @@ void EVIO_Event_UnWatch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
     _ptEventFd->iEvents &= ~EPOLLIN;
     _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
 }
+void EVIO_Event_Watch_Trige(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+{
+    _ptEventFd->iEvents |= EPOLLPRI;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+}
+
+void EVIO_Event_UnWatch_Trige(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd)
+{
+    _ptEventFd->iEvents &= ~EPOLLPRI;
+    _EVIO_Watch_Events(_ptEventCtl, _ptEventFd);
+}
+
 
 /*添加一个定时器 事件控制*/
 void EVIO_EventTimer_Init(T_EV_TIMER *timer, uint64_t _u64timeout_ms, PF_EVTIMER_CB _pfEvTimerCB, void *_pvArg)

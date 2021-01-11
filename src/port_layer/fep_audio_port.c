@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 16:22:19
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 17:27:23
+ * @LastEditTime: 2021-01-11 11:03:51
  */
 
 #include "fep_audio_port.h"
@@ -68,7 +68,7 @@ static int32_t _FEPAUDIO_NanoMsgAndEventCtlInit(T_FEP_AUDIO_NET_EVCTL *_ptFepAud
 		zlog_error(ptMainServer->ptZlogCategory,"++++nn_socket failed\n");
 		return -1;
 	}
-	if (-1 == nn_connect(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd, "inproc://udp<->fepsync_audio"))
+	if (-1 == nn_connect(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd, "inproc://main<->fepsync_audio"))
 	{
 	  zlog_error(ptMainServer->ptZlogCategory,"++++nn_connect failed\n");
       nn_close(_ptFepAudioNetEventCtl->tNanoMsg.iNanoMsgFd);
@@ -187,13 +187,13 @@ void *FEP_Audio_SyncThread_Handle(void *_pvArg)
     gtFepAudioNetCtl.ptServer = ptMainServer;
     gtFepAudioNetCtl.ptEventCtl = NULL;
 	gtFepAudioNetCtl.ptEventUdp  = NULL;
+	zlog_info(ptMainServer->ptZlogCategory,"FEP_Audio_SyncThread start.....\r\n");
 	if(-1 == _FEPAUDIO_NanoMsgAndEventCtlInit(&gtFepAudioNetCtl))
 	{
 		zlog_error(ptMainServer->ptZlogCategory,"FEP_Audio_SyncThread_Handle Event Ctl Init Failed\n");
 		abort();
 	}
 	
-	printf("##########%d######################\r\n",gtFepAudioNetCtl.tNanoMsg.iNanoMsgFd);
 	//功率放大器同步音频
 	T_EVENT_UDP *ptEventFepAudioUdp = EV_NET_EventUDP_CreateAndStart(gtFepAudioNetCtl.ptEventCtl,NULL,FEP_AUDIO_LOCAL_PORT,NULL,FEP_AUDIO_REMOTE_PORT,_FEP_AUDIO_Recive_EventCallBack,ptMainServer);
 	 if(ptEventFepAudioUdp == NULL)
@@ -204,6 +204,11 @@ void *FEP_Audio_SyncThread_Handle(void *_pvArg)
      }
 
      gtFepAudioNetCtl.ptEventUdp = ptEventFepAudioUdp;
+
+	pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
+	++ptMainServer->iThread_bStartCnt;
+	pthread_cond_signal(&ptMainServer->tThread_StartCond);
+	pthread_mutex_unlock(&ptMainServer->tThread_StartMutex);
 
     while(1)
      {

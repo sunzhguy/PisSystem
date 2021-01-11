@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:41
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-02 09:09:30
+ * @LastEditTime: 2021-01-11 13:53:31
  */ 
 
 #ifndef _EVIO_H_
@@ -96,6 +96,9 @@ void EVIO_EventFd_Del(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
 void EVIO_Event_Watch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
 void EVIO_Event_UnWatch_Write(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
 void EVIO_Event_Watch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
+
 void EVIO_Event_UnWatch_Read(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
 
+void EVIO_Event_Watch_Trige(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
+void EVIO_Event_UnWatch_Trige(T_EVENT_CTL *_ptEventCtl, T_EVENT_FD *_ptEventFd);
 #endif

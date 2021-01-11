@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 08:32:42
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-07 11:11:31
+ * @LastEditTime: 2021-01-11 14:55:49
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -81,6 +81,64 @@ static int _GPIO_SetDirection(const int _iGpio, const char *_pcValue)
 }
 
 
+/**
+ * @descripttion: _GPIO_SetEdgeTrige
+ * @param {_pcValue: "none","rising","falling"} 
+ * 
+ * 非中断引脚： echo “none” > edge
+ *上升沿触发： echo “rising” > edge
+ *下降沿触发： echo “falling” > edge
+ *边沿触发：  echo “both” > edge
+ * @return: success :0 failed <0
+ */
+static int _GPIO_SetEdgeTrige(const int _iGpio, const char *_pcValue)
+{
+  int iRet, iFd;
+  char acFileName[100];
+  sprintf(acFileName, "%s/gpio%d/edge", GPIOSysfsPath, _iGpio);
+  printf("^^^^^^^^^^^^^^^^^^^^^^^^^%s-->%s\r\n",acFileName,_pcValue);
+  iFd = open(acFileName, O_WRONLY);
+  if (iFd < 0)
+  {
+    return -1;
+  }
+  iRet = write(iFd, _pcValue, strlen(_pcValue));
+  if (iRet < 0)
+  {
+    close(iFd);
+    return -1;
+  }
+  fsync(iFd);
+  close(iFd);
+  return 0;
+}
+/**
+ * @descripttion: _GPIO_SetEdgeTrige 
+ * @param {_pcValue: "0","1"} 
+ * @return: success :0 failed <0
+ */
+static int _GPIO_SetActiveLow(const int _iGpio, const char *_pcValue)
+{
+  int iRet, iFd;
+  char acFileName[100];
+  sprintf(acFileName, "%s/gpio%d/active_low", GPIOSysfsPath, _iGpio);
+  iFd = open(acFileName, O_WRONLY);
+  if (iFd < 0)
+  {
+    return -1;
+  }
+  iRet = write(iFd, _pcValue, strlen(_pcValue));
+  if (iRet < 0)
+  {
+    close(iFd);
+    return -1;
+  }
+  fsync(iFd);
+  close(iFd);
+  return 0;
+}
+
+
 static int _GPIO_WriteValue(const int _iGpio, const int _iValue)
 {
   int iRet, iFd;
@@ -125,6 +183,22 @@ static int _GPIO_GetValue(const int _iGpio)
     fsync(iFd);
     close(iFd);
     return (int)(u8Value - '0');
+}
+
+int  GPIO_IO_GetReadFd(const int _iGpio)
+{
+    int iFd  = -1;
+    int iRet = -1;
+    unsigned char u8Value;
+    char acGPIOPath[60];
+    sprintf(acGPIOPath, "%s/gpio%d/value", GPIOSysfsPath, _iGpio);
+    iFd = open(acGPIOPath, O_RDONLY | O_NONBLOCK);
+    if (iFd < 0)
+    {
+        return -1;
+    }
+    return iFd;
+
 }
 
 int  GPIO_Init(const int _iGpio,const int _iDir)
@@ -182,4 +256,39 @@ int  GPIO_IO_Toggle(const int _iGpio)
      return _GPIO_WriteValue(_iGpio, !ivalue);
     }
     return -1;
+}
+
+
+int  GPIO_IO_TrigCtl(const int _iGpio,const int _imode)
+{
+  int iRet = 0;
+  switch (_imode)
+  {
+    case MODE_NONE:
+    
+     iRet = _GPIO_SetEdgeTrige(_iGpio,"none");
+     break;
+
+    case MODE_FALLING:
+
+     iRet = _GPIO_SetEdgeTrige(_iGpio,"falling");
+     break;
+
+    case MODE_RISING:
+
+     iRet = _GPIO_SetEdgeTrige(_iGpio,"rising");
+     break;
+    case MODE_BOTH:
+     
+     iRet = _GPIO_SetEdgeTrige(_iGpio,"both");
+     break;
+
+    default:
+
+     iRet = _GPIO_SetEdgeTrige(_iGpio,"none");
+     break;
+  }
+
+  return iRet;
+
 }

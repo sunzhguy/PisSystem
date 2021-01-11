@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-22 08:40:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 17:14:05
+ * @LastEditTime: 2021-01-11 11:05:17
  */ 
 #include <unistd.h>
 #include <stdio.h>
@@ -159,7 +159,7 @@ static int32_t _UDP_SERVICE_UdpEventCtlInit(T_UDP_NET_EVCTL *_ptUdpNetEventCtl)
       nn_close(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
 	  return -1;
 	}
-	zlog_debug(ptMainServer->ptZlogCategory,"--------------------------%d\n",_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
+	zlog_debug(ptMainServer->ptZlogCategory,"_UDP_SERVICE_UdpEventCtlInit---------%d\n",_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd);
 	
 	if (-1 == nn_getsockopt(_ptUdpNetEventCtl->tNanoMsgUDPNet.iNanoMsgFd, NN_SOL_SOCKET, NN_RCVFD,\
 							 (char *)&_ptUdpNetEventCtl->tNanoMsgUDPNet.iSysFd, &size))

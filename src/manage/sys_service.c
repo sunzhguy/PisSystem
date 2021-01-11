@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-07 15:35:18
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 15:10:20
+ * @LastEditTime: 2021-01-11 10:59:36
  */
 #include "sys_service.h"
 #include "evio/evio.h"
@@ -19,6 +19,7 @@
 #include "mp3_decoder.h"
 #include "../port_layer/fep_audio_port.h"
 #include "../port_layer/audio_port_bd.h"
+#include "../manage/ioinput_manage.h"
 
 
 T_TRAIN_SYSTEM  tTrainSystem;
@@ -85,8 +86,16 @@ void *TrainSystemService_ThreadHandle(void *_pvArg)
 		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
 	 }
 
+    //IOInput初始化
+    ret =pthread_create(&tThreadMP3Decoder,NULL,IOInput_Thread_Handle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"SYS service thread pthread create error\n");
+	 }
+     
     pthread_mutex_lock(&ptMainServer->tThread_StartMutex);
 	++ptMainServer->iThread_bStartCnt;
+    zlog_info(ptMainServer->ptZlogCategory,"+++++++++++++++++<%d>\r\n",ptMainServer->iThread_bStartCnt);
 	pthread_cond_signal(&ptMainServer->tThread_StartCond);
 	pthread_mutex_unlock(&ptMainServer->tThread_StartMutex);
 

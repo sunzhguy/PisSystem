@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-21 10:40:44
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 17:36:24
+ * @LastEditTime: 2021-01-11 09:57:33
  */
 #ifndef AUDIO_PORT_BROADCAST
 #define AUDIO_PORT_BROADCAST
@@ -38,6 +38,7 @@ typedef struct {
     T_EVENT_UDP  *ptEventUdp;
     T_BDAUDIONANOMSG_EVFDS tNanomsgEvFds;
 	T_MAINSERVER *ptServer;
+	pthread_mutex_t tThread_Mutex;
 }T_BDAUDIO_NET_EVCTL;
 
 void *BDAudio_Thread_Handle(void *_pvArg);
