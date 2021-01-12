@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 08:32:49
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 13:46:31
+ * @LastEditTime: 2021-01-12 09:39:09
  */
 
 
@@ -34,6 +34,7 @@
 
 #define  IO_R_OPEN4         GPIO_PIN(GPIO(4),PIN(24)) //---
 #define  IO_L_OPEN3         GPIO_PIN(GPIO(4),PIN(23)) //--
+
 #define  IO_SPEED2          GPIO_PIN(GPIO(1),PIN(30))
 #define  IO_KEY1            GPIO_PIN(GPIO(1),PIN(31))
 #define  IO_CTRL            GPIO_PIN(GPIO(1),PIN(28)) //司机占有
@@ -41,6 +42,7 @@
 
 #define  IO_CLOSE5          GPIO_PIN(GPIO(1),PIN(1)) //
 #define  IO_OCC_ACT6        GPIO_PIN(GPIO(1),PIN(2)) //
+#define  IO_POWER_DWN       GPIO_PIN(GPIO(1),PIN(18)) //掉电检测
 
 #define  IO_CPU_ADDR1       GPIO_PIN(GPIO(1),PIN(8)) //ADDR1
 #define  IO_CPU_ADDR2       GPIO_PIN(GPIO(1),PIN(9)) //ADDR2

@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-07 15:35:18
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 10:59:36
+ * @LastEditTime: 2021-01-12 16:24:44
  */
 #include "sys_service.h"
 #include "evio/evio.h"
@@ -20,6 +20,7 @@
 #include "../port_layer/fep_audio_port.h"
 #include "../port_layer/audio_port_bd.h"
 #include "../manage/ioinput_manage.h"
+#include "driver/soundcard.h"
 
 
 T_TRAIN_SYSTEM  tTrainSystem;
@@ -41,7 +42,24 @@ void *TrainSystemService_ThreadHandle(void *_pvArg)
     PISC_LOCAL_ProcessDataInit();//本地数据初始化,设备号可能在后面的初始化中用到
     PISC_Init();
     TMS_Init();
+
+
+
+    //启动声卡录音线程
+    ret =pthread_create(&tThreadBroadCast,NULL,SOUNDCARD_RecordService_ThreadHandle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"soundcard thread pthread create error\n");
+	 }
     
+      //启动声卡播放线程
+    ret =pthread_create(&tThreadBroadCast,NULL,SOUNDCARD_PlayPCMService_ThreadHandle,ptMainServer);
+	 if(-1 == ret)
+	 {
+		zlog_error(ptMainServer->ptZlogCategory,"soundcard thread pthread create error\n");
+	 }
+    
+
     //状态检测
     EVIO_EventTimer_Init(&tTrainSystem.tEventTimer,1000,DEV_STATUS_TimerOut_Handle,&tTrainSystem);
 	EVIO_EventTimer_Start(tTrainSystem.ptEventCtl,&tTrainSystem.tEventTimer);

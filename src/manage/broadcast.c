@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 08:46:56
+ * @LastEditTime: 2021-01-12 10:19:36
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -667,16 +667,28 @@ void _BROADCAST_UDPNanomsgHandle(T_EVENT_CTL *_ptEventCtl, T_BROADCAST_NANOMSGFD
 					BROADCAST_Process(dat[3],dat[4],dat[5]);
 				}else if(dat[2] == BROADCAST_STOP)
 				{
-					//[3]: _u8OpType;[4] :_u8DevType;[5] :_u8DevId;[6] : _u8BdType;
+					//[2]: _u8OpType;[3] :_u8DevType;[4] :_u8DevId;[5] : _u8BdType;
 					printf("STOPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\r\n");
-					BROADCAST_StopProcess(dat[6]);
+					BROADCAST_StopProcess(dat[5]);
 				}
 				break;
 			}
 			case MSG_TYPE_FEPAUDIO://Fep Audio Sync BroadCast Send
 			{
 				_BROADCAST_AudioSyncSendHandle();
+				break;
 			}
+			case MSG_TYPE_OCCBD:
+			{
+			  if(dat[2] == BROADCAST_PLAY)
+			  {
+			   BROADCAST_Process(dat[3],dat[4],BROADCAST_OCC);
+			  }else
+			   BROADCAST_StopProcess(BROADCAST_OCC);
+			  break;
+			}
+			
+
 			default:
 			    break;
 		}

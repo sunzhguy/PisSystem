@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 15:48:14
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-08 15:50:56
+ * @LastEditTime: 2021-01-12 16:23:41
  */
 
 //头文件中有SOUNDCARD_H的宏定义
@@ -34,4 +34,6 @@
 
 
 
+void  *SOUNDCARD_RecordService_ThreadHandle(void *_pvArg);
+void  *SOUNDCARD_PlayPCMService_ThreadHandle(void *_pvArg);
 #endif

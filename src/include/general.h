@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 11:37:23
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-08 11:39:20
+ * @LastEditTime: 2021-01-12 11:21:20
  */
 #ifndef GENERAL_H
 #define GENERAL_H
@@ -20,5 +20,7 @@ typedef signed   int   int32_t;                   /* 有符号32位整型变量 
 typedef float          fp32_t;                    /* 单精度浮点数（32位长度）                 */
 typedef double         fp64_t;                    /* 双精度浮点数（64位长度）                 */
 
+typedef long long                  int64_t;
+typedef unsigned long long         uint64_t;
 
 #endif

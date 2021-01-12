@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-11 10:02:22
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 17:35:53
+ * @LastEditTime: 2021-01-12 10:20:39
  */
 
 
@@ -13,13 +13,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/poll.h>
+#include <pthread.h>
 #include "ioinput_manage.h"
 #include "../driver/gpio.h"
+#include "../operate_device/occ.h"
 
 T_IOINPUT_EVCTL sgtIOInputEvCtl;
 
 
-#define IO_INPUT_MAXNUM    6
+#define IO_INPUT_MAXNUM    16
 
 typedef void (*PF_IOINPUT_CALLBACK)(void *,uint32_t,uint8_t);
 
@@ -184,10 +186,17 @@ static void _IOInput_NanoMsgClose(T_IONANOMSG_EVFDS *_ptNanomsgEvFds)
 
 
 
-void IOInput_IOInputHandle(T_IOINPUT_EVCTL *ptIOInputCtl,uint32_t _iGpioPin,uint8_t _u8IOLevel)
+void IOInput_IOInputHandle(T_IOINPUT_EVCTL *_ptIOInputCtl,uint32_t _iGpioPin,uint8_t _u8IOLevel)
 {
     printf("_iGpioPin:%d,_u8IOLevel:%d\r\n",_iGpioPin,_u8IOLevel);
-    
+    //发送NanoMsg
+    switch (_iGpioPin)
+    {
+        case IO_OCC_ACT6://OCC 广播触发输入
+         OCC_OCCStatusSet(_ptIOInputCtl,_u8IOLevel);
+         break;
+
+    }
 }
 
 
@@ -200,8 +209,16 @@ void *IOInput_InputThreadCheck(void *_pvArg)
     struct pollfd tIOPollFdSet[IO_INPUT_MAXNUM];
     T_IOINPUT_EVCTL *ptIOInputEvCtl = (T_IOINPUT_EVCTL*)_pvArg;
     memset((void*)tIOPollFdSet,0,sizeof(tIOPollFdSet));
-    _IOInput_AddManageTableInit(&tIOPollFdSet,IO_OCC_ACT6,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);
-
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_KEY1    ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//KEY 钥匙信号
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_OCC_ACT6,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//OCC 音频广播信号
+    #if 1
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_SPEED2  ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_R_OPEN4 ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//右开门信号
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_L_OPEN3 ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//左开门信号
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_CLOSE5  ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//关门信号
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_CTRL    ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//司机占有
+    _IOInput_AddManageTableInit(tIOPollFdSet,IO_CL_CTRL ,MODE_BOTH,1,1,0,1,IOInput_IOInputHandle);//重连信号
+    #endif
     while(1)
     {
         iRet = poll(tIOPollFdSet,sgU8IOTableiNum,50);//50ms
@@ -216,12 +233,12 @@ void *IOInput_InputThreadCheck(void *_pvArg)
                     acReadBuf[7] = '\0';
                     lseek(tIOPollFdSet[i].fd,0,SEEK_SET);
                     ioLevel = (acReadBuf[0]=='1')? 1 : 0;
-                    printf("ioLevel:%d\r\n",ioLevel);
+                    printf("ioLevel:%d--pin:%d<%d--%d>\r\n",ioLevel,gtIOInputMangeTable[i].iGpioPin,tIOPollFdSet[i].fd,gtIOInputMangeTable[i].iFd);
                     if(len)
                     {
                         if(gtIOInputMangeTable[i].iTrigMode == MODE_BOTH)
                         {
-                            usleep(20000);
+                            usleep(50000);//50ms 防抖
                             if(gtIOInputMangeTable[i].u8IOLevelBakup != ioLevel)
                             {
                                 //防抖在读一次
@@ -233,10 +250,11 @@ void *IOInput_InputThreadCheck(void *_pvArg)
                                 ioLevel = (acReadBuf[0]=='1')? 1 : 0;
                                 printf("ioLevelxxx:%d\r\n",ioLevel);
                                 #endif
-                                if(ioLevel != gtIOInputMangeTable[i].u8IOLevelBakup)
+                                //ioLevel = GPIO_IO_Value(gtIOInputMangeTable[i].iGpioPin);
+                                if(ioLevel != -1 && ioLevel != gtIOInputMangeTable[i].u8IOLevelBakup)
                                 {
                                     gtIOInputMangeTable[i].u8IOLevelBakup = ioLevel;
-                                    gtIOInputMangeTable[i].pfCallBack(_pvArg,gtIOInputMangeTable->iGpioPin,ioLevel);
+                                    gtIOInputMangeTable[i].pfCallBack(_pvArg,gtIOInputMangeTable[i].iGpioPin,ioLevel);
                                 }
                             } 
                         }
@@ -256,8 +274,7 @@ void *IOInput_Thread_Handle(void *_pvArg)
     T_MAINSERVER *ptMainServer   = (T_MAINSERVER *) _pvArg;
     sgtIOInputEvCtl.ptServer     =  ptMainServer;
     sgtIOInputEvCtl.ptEventCtl   = NULL;
-    T_EVENT_FD *ptEventFd        =NULL;
-    int io_fd;
+    //T_EVENT_FD *ptEventFd        =NULL;
     zlog_info(ptMainServer->ptZlogCategory,"IOInput_Thread start....\r\n");
 	if(-1 == _IOInput_NanoMsgAndEventCtlInit(&sgtIOInputEvCtl))
 	{
