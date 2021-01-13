@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-04 11:05:48
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-09 17:23:11
+ * @LastEditTime: 2021-01-13 09:00:01
  */
 
 #include <stdio.h>
@@ -409,7 +409,7 @@ static void _TMS_CycleBroadCastTrigger(T_PIS_PACKDATAFRAME *_ptPisRecvPackDataFr
 static void _TMS_RecivAFrameDataPackHandle(uint8_t *pcBuf)
 {	
 	
-	printf("_TMS_RecivAFrameDataPackHandle......\r\n");
+	//printf("_TMS_RecivAFrameDataPackHandle......\r\n");
 	//printf("PISC Mode:%d,status:%d\n",PISC_LOCAL_GetWorkMode(),PISC_LOCAL_GetMasterFlag());
 	 LED_Toggle(LED_TMS);
 	if(PISC_LOCAL_GetWorkMode() != PISC_ATC_MODE)
@@ -420,7 +420,7 @@ static void _TMS_RecivAFrameDataPackHandle(uint8_t *pcBuf)
 
 	if(PISC_LOCAL_GetMasterFlag() != PISC_STATUS_MASTER)
 	{
-		printf("FLAG++++++++++++%d\n",PISC_LOCAL_GetMasterFlag());
+		//printf("FLAG++++++++++++%d\n",PISC_LOCAL_GetMasterFlag());
 		return ;
 	}
 	PisDataProc_Matrix_CompareUpdateProcessData((T_PIS_PACKDATAFRAME*)pcBuf);

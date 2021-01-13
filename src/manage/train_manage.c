@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-10 09:32:25
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 11:52:04
+ * @LastEditTime: 2021-01-13 08:59:16
  */
 
 
@@ -45,7 +45,7 @@ void   TrainManage_Timer1sCallBack(void *_pvEventCtl, T_EV_TIMER *_ptEventTimer,
     T_TRAIN_SYSTEM* ptTrainSystem = _pvArg;
     T_EVENT_CTL * ptEventCtl = (T_EVENT_CTL * )_pvEventCtl;
 
-    printf("Send Local Time.....\r\n");
+    //printf("Send Local Time.....\r\n");
     if(PISC_LOCAL_GetMasterFlag())
     {
         PISC_LOCAL_SendTime();

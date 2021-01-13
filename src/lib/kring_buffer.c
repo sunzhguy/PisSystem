@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-06-05 15:35:11
  * @LastEditor: sunzhguy
- * @LastEditTime: 2020-12-21 15:08:33
+ * @LastEditTime: 2021-01-13 17:26:28
  * 参考连接:https://www.cnblogs.com/java-ssl-xy/p/7868531.html
  * http://en.wikipedia.org/wiki/Circular_buffer
  */ 
@@ -86,7 +86,7 @@ static uint32_t _KRingBuffer_Get(T_KRING_BUFFER *_ptKRingBuf,void * _pvFBuffer,u
    uint32_t u32Len = 0;
    assert (_ptKRingBuf || _pvFBuffer);
   
-   u32Len = min(_u32Size,_ptKRingBuf->u32In - _ptKRingBuf->u32Out);
+   _u32Size = min(_u32Size,_ptKRingBuf->u32In - _ptKRingBuf->u32Out);
    /*first get the data form fifo->out unsil the end of the buffer*/
    u32Len = min(_u32Size,_ptKRingBuf->u32Size - (_ptKRingBuf->u32Out & (_ptKRingBuf->u32Size -1)));
    memcpy(_pvFBuffer,_ptKRingBuf->pvFBuffer+(_ptKRingBuf->u32Out &(_ptKRingBuf->u32Size -1)),u32Len);

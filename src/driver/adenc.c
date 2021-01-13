@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-12 15:05:16
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-12 17:39:04
+ * @LastEditTime: 2021-01-13 17:05:19
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,9 +21,8 @@ typedef struct _T_AUDIODENC_INFO {
 	uint16_t             u16Channels;                        //通道数
     uint32_t             u32SampleRate;                       //采样率
 	size_t               iChunk_bytes;                       //周期字节数
-	size_t               iBits_per_sample;                   //样本长度  8bit  16  bit等
+	size_t               iBytePerSample;                   //样本长度  8bit  16  bit等
 	size_t               iBits_per_frame;                    //帧   记录了一个声音单元的长度   等于通道数乘以 样本长度
-	uint8_t              *pcDataBuf;                        //数据的缓冲区
 }T_AUDIODENC_INFO;
 
 T_AUDIODENC_INFO  gtAudioDencInfo;
@@ -31,14 +30,15 @@ T_AUDIODENC_INFO  gtAudioDencInfo;
 
 
 
-int  ADENC_AudioOutPutInit(char **pcBuffer)
+int  ADENC_AudioOutPutInit()
 {
     int iRet = 0;
     snd_pcm_hw_params_t *ptParams;
 
-    gtAudioDencInfo.u16Channels   = 2;                 //双声道
+    gtAudioDencInfo.u16Channels   = 1;                 //双声道
     gtAudioDencInfo.tFormat       = SND_PCM_FORMAT_S16;//16位数据
     gtAudioDencInfo.u32SampleRate = 44100;             //44.1KHZ 采样率
+    gtAudioDencInfo.iBytePerSample = 2;//SND_PCM_FORMAT_S16;//16位数据  2Byte
     uint32_t u32Dir;
 
 /* Open PCM device for playback. */
@@ -91,16 +91,8 @@ int  ADENC_AudioOutPutInit(char **pcBuffer)
     } 
    
     snd_pcm_hw_params_get_period_size(ptParams, &gtAudioDencInfo.tFrame_num,&u32Dir);
-    gtAudioDencInfo.iChunk_bytes = gtAudioDencInfo.tFrame_num*2*2;   // 2 bytes/sample, 2 channels
-    gtAudioDencInfo.pcDataBuf    = malloc(gtAudioDencInfo.iChunk_bytes);
+    gtAudioDencInfo.iChunk_bytes = gtAudioDencInfo.tFrame_num*gtAudioDencInfo.iBytePerSample*gtAudioDencInfo.u16Channels;   // 2 bytes/sample, 2 channels
     printf("########Play PCM Dir:%d ,%d Frame:%d\r\n",u32Dir,gtAudioDencInfo.tFrame_num,gtAudioDencInfo.iChunk_bytes);
-    if(gtAudioDencInfo.pcDataBuf == NULL)
-    {
-        snd_pcm_hw_params_free(ptParams);
-        snd_pcm_close(gtAudioDencInfo.ptHandle);
-        return -1;
-    }
-    *pcBuffer = gtAudioDencInfo.pcDataBuf;
     return iRet;
 }
 
@@ -109,47 +101,80 @@ void  ADENC_AudioOutPutClose(void)
 {
   snd_pcm_drain(gtAudioDencInfo.ptHandle);   /* 等待数据全部播放完成 */
   snd_pcm_close(gtAudioDencInfo.ptHandle);
-  if( gtAudioDencInfo.pcDataBuf)
-  {
-      free(gtAudioDencInfo.pcDataBuf);
-  }
 }
 
 
-int  ADENC_GetFrameSize(void)
+int  ADENC_GetPeriodFrameSize(void)
 {
     return gtAudioDencInfo.iChunk_bytes;
 }
-int  ADENC_GetFrameCnt(void)
+int  ADENC_GetFramesSize(void)
 {
     return gtAudioDencInfo.tFrame_num;
 }
-int ADENC_AudioPlayOut(const void* _pvData, int _iDataSize)
+int  ADENC_GetChannels(void)
 {
+    return gtAudioDencInfo.u16Channels;
+}
+int ADENC_AudioPlayOut(const void* _pvBuffer, int _iFramesSize)
+{
+  
+   int iRet = 0;
+   iRet = snd_pcm_writei(gtAudioDencInfo.ptHandle, _pvBuffer, _iFramesSize);
+   if(iRet == -EPIPE || iRet >=0 )
+    {
+   
+      /* 让音频设备准备好接收pcm数据 */
+      if(iRet == -EPIPE )
+      {
+           snd_pcm_prepare(gtAudioDencInfo.ptHandle); 
+           return -1;
+      }else
+      {
+         return iRet;
+      }
+    }
 
+  
+}
+
+
+#if 0
+  int iRet = -1;
   snd_pcm_uframes_t tFrameSize;	  /* 一帧的大小 */
   unsigned int      iFormatSbits = 16; /* 数据格式: 有符号16位格式 */
   unsigned int iChannels    = gtAudioDencInfo.u16Channels;
   /* 获取一个播放周期的帧数 */
   tFrameSize = iFormatSbits*iChannels/8;
-
-  for(snd_pcm_uframes_t i = 0; i < _iDataSize;)
+  printf("iRet===%dgtAudioDencInfo.tFrame_num:%d _iDataSize:%d,tFrameSize:%d\r\n",iRet,gtAudioDencInfo.tFrame_num,_iDataSize,tFrameSize);
+  //for(snd_pcm_uframes_t i = 0; i < _iDataSize;)
   {
    
-  	int iRet = -1;
+  
   	/* 播放 */
-   iRet = snd_pcm_writei(gtAudioDencInfo.ptHandle, _pvData, _iDataSize/*gtAudioDencInfo.tFrame_num*/);
-   printf("iRet===%dgtAudioDencInfo.tFrame_num:%d _iDataSize:%d\r\n",iRet,gtAudioDencInfo.tFrame_num,_iDataSize);
+   iRet = snd_pcm_writei(gtAudioDencInfo.ptHandle, _pvData, _iDataSize);
+   //
    if(iRet == -EPIPE || iRet >=0 )
     {
    
       /* 让音频设备准备好接收pcm数据 */
-      if(iRet  == iRet == -EPIPE )
-      snd_pcm_prepare(gtAudioDencInfo.ptHandle); 
+      if(iRet == -EPIPE )
+      {
+           snd_pcm_prepare(gtAudioDencInfo.ptHandle); 
+           return -1;
+      }/*else
+      {
+         return iRet;
+      }*/
+      
+     
+      #if 0
       else
       {
          i += gtAudioDencInfo.tFrame_num * tFrameSize;
+         //printf("i====%d\r\n",i);
       }
+      #endif
       
     }else
     {
@@ -157,4 +182,4 @@ int ADENC_AudioPlayOut(const void* _pvData, int _iDataSize)
     }
   }
     return 0;
-}
+#endif

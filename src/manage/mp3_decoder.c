@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 17:06:24
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-08 16:22:45
+ * @LastEditTime: 2021-01-13 17:28:53
  */
 
 #include <unistd.h>
@@ -431,7 +431,8 @@ uint8_t  MP3_Decoder_Get_PCM_Data(uint16_t *_pu16Buffer,uint16_t _u16Len)
 
   if(KRingBuffer_GetLength(gptKRingBuffer)!=0)
 	 {
-		KRingBuffer_Get(gptKRingBuffer,_pu16Buffer,_u16Len);
+		KRingBuffer_Get(gptKRingBuffer,_pu16Buffer,_u16Len*sizeof(uint16_t));
+       // printf("++++++++++%d++++++++++%d+\r\n",KRingBuffer_GetLength(gptKRingBuffer),_u16Len);
 		return 1;
 	 }else 
 	    return 0;
@@ -519,7 +520,24 @@ void  *MP3_Decoder_Service_ThreadHandle(void *_pvParam)
                  
                 printf("Decoding................................OVER...OK\r\n");
                 _MP3_Decoder_AVCodec_Close(&gtAudioChannel_Left.pFormatCtx,gtAudioChannel_Left.pAudioCodecCtx,gtAudioChannel_Left.iAudioStream,\
-                                            gtAudioChannel_Left.pVideoCodecCtx,gtAudioChannel_Left.iVideoStream);                
+                                            gtAudioChannel_Left.pVideoCodecCtx,gtAudioChannel_Left.iVideoStream); 
+
+                 int bExistSleep = 0;
+                 while(KRingBuffer_GetLength(gptKRingBuffer) != 0x00)
+                 {
+                     usleep(100000);
+                     #if 0
+                     if(bExistSleep%10 == 0x00)
+						printf("------%d,%d\r\n",bExistSleep,KRingBuffer_GetLength(gptKRingBuffer));
+						usleep(100000);
+						bExistSleep++;
+						if(bExistSleep >500)//大约5秒退出
+					    {
+							break;
+						}
+                        #endif
+                 }  
+                 //KRingBuffer_Reset(gptKRingBuffer);         
                 _MP3_Decoder_Set_CurrentFileEOF(FILE_EOF_TRUE);
                 _MP3_Decoder_Set_IsDecoding(NODECODING);
                 MP3_Decoder_Set_RunFlag(NODECODING);

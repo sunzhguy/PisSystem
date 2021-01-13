@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-07-16 11:42:51
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 13:58:43
+ * @LastEditTime: 2021-01-13 18:35:30
  */ 
 #include <stdio.h>
 #include <unistd.h>
@@ -15,7 +15,7 @@
 #include "evio.h"
 
 
-#define TIMEMOUT_TM  1000
+#define TIMEMOUT_TM  5
 
 uint64_t EVIO_Get_CurentTime_ms(void)
 {

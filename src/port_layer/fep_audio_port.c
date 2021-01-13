@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2021-01-07 16:22:19
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-11 11:03:51
+ * @LastEditTime: 2021-01-13 18:32:01
  */
 
 #include "fep_audio_port.h"
@@ -132,7 +132,7 @@ static void  _FEP_Audio_SendNanoMsg(T_FEP_AUDIO_NET_EVCTL *_ptFepAudioNetCtl)
 		dat[0] = TO_BROADCAST_NS;
 		dat[1] = MSG_TYPE_FEPAUDIO;
 	    int bytes = nn_send(_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd, &dat, NN_MSG, NN_DONTWAIT);
-		printf("{%d}--send.........byte...%d\r\n",_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd,bytes);
+		//printf("{%d}--send.........byte...%d\r\n",_ptFepAudioNetCtl->tNanoMsg.iNanoMsgFd,bytes);
 	}
 }
 
@@ -158,11 +158,13 @@ static void _FEP_AUDIO_Recive_EventCallBack(T_EVENT_CTL *_ptEventCtl, T_EVENT_UD
 
 	 if(ptEvNetBuffer->iReadLen >0)
 	 { 
-		  if(ptEvNetBuffer->iReadLen >=1024)
+
+		 
+		  if(ptEvNetBuffer->iReadLen >=512)
 		  {
-			  _FEP_Audio_ReadAFrameData((uint8_t*)ptEvNetBuffer->acReadBuffer,1024);//PIS 过程数据读取1K数据
-			  left_len = ptEvNetBuffer->iReadLen -1024;
-			  beg = 1024;
+			  _FEP_Audio_ReadAFrameData((uint8_t*)ptEvNetBuffer->acReadBuffer,512);//PIS 过程数据读取1K数据
+			  left_len = ptEvNetBuffer->iReadLen -512;
+			  beg = 512;
 		  }else
 		  {
 			 

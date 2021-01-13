@@ -4,7 +4,7 @@
  * @Author: sunzhguy
  * @Date: 2020-12-08 14:15:13
  * @LastEditor: sunzhguy
- * @LastEditTime: 2021-01-12 10:19:36
+ * @LastEditTime: 2021-01-13 09:01:30
  */
 #include <unistd.h>
 #include <stdio.h>
@@ -503,7 +503,7 @@ uint8_t   BROADCAST_GetPriority(uint8_t _u8OpDevType,uint8_t _u8OpDevId,uint8_t 
 	T_BROADCASTPROC_LIST const *ptBdProcList = _gtBroadCastProcessList;
 	while(ptBdProcList->u8BdOpDevType)
 	{
-		printf("+++++++++++%d\n",_u8TypeBroadCast);
+		//printf("+++++++++++%d\n",_u8TypeBroadCast);
 		if(ptBdProcList->u8BdOpDevType == _u8OpDevType && 
 		   ptBdProcList->u8BdOpDevId   == _u8OpDevId   && 
 		   ptBdProcList->u8BdType      == _u8TypeBroadCast)
@@ -526,7 +526,7 @@ static _BROADCAST_AudioSyncSendHandle(void)
 	  if(ptBdProcList->u8BdType == BROADCAST_GetBroadCastType())
 	  {
 		  ptBdProcList->pfBroadCastAudioSend();
-		  printf("+++++++++++#########++++++++++++\r\n");
+		  //printf("+++++++++++#########++++++++++++\r\n");
 		  break;
 	  }
 	  ptBdProcList++;
